@@ -1,0 +1,321 @@
+================================================================================
+                    FRC ROBOT TECHNICAL SPECIFICATIONS
+                           Team 9028 - 2026 Season
+================================================================================
+
+ROBOT OVERVIEW
+================================================================================
+Robot Type:            Swerve Drive Robot
+Competition Season:    FRC 2026
+Programming Language:  Java 17
+Control System:        WPILib 2026.1.1
+
+
+YAZILIMSAL DONANIM (SOFTWARE/FIRMWARE)
+================================================================================
+
+Framework & Libraries:
+  - WPILib Version:              2026.1.1
+  - Java Version:                17
+  - Gradle Version:              8.x (via GradleRIO 2026.1.1)
+
+Vendor Kütüphaneleri:
+  - CTRE Phoenix 6:              v26.1.0
+    • Swerve drive kontrolü
+    • TalonFX motor kontrolörleri
+    • CANcoder encoder desteği
+    • Pigeon 2 IMU desteği
+
+  - PathPlanner Library:         v2025.2.7 (2026 ile uyumlu)
+    • Otonom path planning
+    • Trajectory following
+    • Auto builder desteği
+    • Holonomic drive controller
+
+  - Limelight Helpers:           Built-in
+    • AprilTag vision processing
+    • Pose estimation
+    • Target tracking
+
+
+DONANIMSAL ÖZELLIKLER (HARDWARE SPECIFICATIONS)
+================================================================================
+
+SÜRÜŞ SİSTEMİ (DRIVETRAIN):
+--------------------------------------------------------------------------------
+Tip:                   Swerve Drive (4 Modül)
+Wheelbase:             27.165 inches (diagonal: ~38.4 inches)
+                       (13.5825" x 13.5825" kare konfigürasyon)
+Tekerlek Çapı:         4 inches (2 inch radius)
+Maksimum Hız:          5.29 m/s @ 12V (~17.4 ft/s)
+Dönüş Hızı:            0.75 rotasyon/saniye (270°/s)
+
+Swerve Modül Konumları:
+  - Ön Sol (FL):       (+13.5825", +13.5825")
+  - Ön Sağ (FR):       (+13.5825", -13.5825")
+  - Arka Sol (BL):     (-13.5825", +13.5825")
+  - Arka Sağ (BR):     (-13.5825", -13.5825")
+
+
+MOTOR & ELEKTRONIK DONANIM
+================================================================================
+
+SÜRÜŞ MOTORLARI (Drive Motors):
+--------------------------------------------------------------------------------
+Motor Tipi:            TalonFX (Kraken X60 - Integrated)
+Adet:                  8 motor (4 drive + 4 steer)
+Drive Gear Ratio:      6.03:1
+Steer Gear Ratio:      26.09:1
+Coupling Ratio:        0:1 (no coupling)
+
+Motor ID Atamaları:
+  Ön Sol Modül:        Drive: 4,  Steer: 5,  Encoder: 6
+  Ön Sağ Modül:        Drive: 7,  Steer: 8,  Encoder: 9
+  Arka Sol Modül:      Drive: 10, Steer: 11, Encoder: 12
+  Arka Sağ Modül:      Drive: 13, Steer: 14, Encoder: 15
+
+Motor Konfigürasyonu:
+  - Neutral Mode:      Brake (tüm motorlar)
+  - Drive Control:     Velocity Control (closed-loop)
+  - Steer Control:     Motion Magic Expo
+  - Output Type:       Voltage Control
+  - Slip Current:      120 Amps
+
+
+ENCODER & SENSÖRLER (Encoders & Sensors):
+--------------------------------------------------------------------------------
+Steer Encoders:        CANcoder (4 adet - FusedCANcoder feedback)
+  - FL Offset:         -0.146484375 rotations
+  - FR Offset:         -0.396728515625 rotations
+  - BL Offset:         +0.124511718750 rotations
+  - BR Offset:         -0.231689453125 rotations
+
+IMU (Gyro):            Pigeon 2
+  - CAN ID:            2
+  - Mounting:          CANivore bus
+  - Alliance Auto:     Enabled (otomatik alliance yön ayarı)
+
+
+GÖRÜŞ SİSTEMİ (VISION SYSTEM):
+--------------------------------------------------------------------------------
+Kamera:                Limelight
+  - AprilTag Detection: Aktif
+  - Pose Estimation:   MegaTag2 / WPILib Alliance-Corrected
+  - Target Distance:   Max 2.5m
+  - Approach Distance: 0.55m optimal, 0.65m minimum
+
+
+CAN BUS YAPILANDIRMASI (CAN Bus Configuration):
+================================================================================
+CAN Bus:               CANivore
+Bus Name:              "CANivore"
+Hoot Log Path:         "./logs/example.hoot"
+Odometry Frequency:    250 Hz (CAN FD) / 100 Hz (CAN 2.0)
+
+Tüm swerve cihazları aynı CANivore bus üzerinde:
+  - 8x TalonFX Motor Controller (ID 4-15)
+  - 4x CANcoder (ID 6, 9, 12, 15)
+  - 1x Pigeon 2 IMU (ID 2)
+
+
+KONTROL PARAMETRELERI (CONTROL PARAMETERS)
+================================================================================
+
+PID KAZANÇLARI - STEER (Direksiyon):
+--------------------------------------------------------------------------------
+  kP:  100.0
+  kI:  0.0
+  kD:  0.5
+  kS:  0.1   (Static Feedforward)
+  kV:  2.49  (Velocity Feedforward)
+  kA:  0.0   (Acceleration Feedforward)
+
+PID KAZANÇLARI - DRIVE (Sürüş):
+--------------------------------------------------------------------------------
+  kP:  0.1
+  kI:  0.0
+  kD:  0.0
+  kS:  0.0   (Static Feedforward)
+  kV:  0.124 (Velocity Feedforward)
+
+AKIM SINIRLARI (Current Limits):
+--------------------------------------------------------------------------------
+  Steer Stator Limit:  60 Amps (brownout koruması için)
+  Slip Current:        120 Amps (teker kayması tespiti)
+
+
+OTONOM ÖZELLIKLER (AUTONOMOUS CAPABILITIES)
+================================================================================
+
+PathPlanner Integration:
+  - Auto Builder:              Aktif
+  - Path Following:            Holonomic Drive Controller
+  - Alliance Mirroring:        Otomatik (Red/Blue)
+  - Robot Configuration:       Dynamic/Manual fallback
+
+PathPlanner PID Kontrolü:
+  Translation PID:     P=5.0,  I=0.0,  D=0.0
+  Rotation PID:        P=9.0,  I=1.2,  D=0.15
+  Control Period:      20ms (0.02s)
+
+Robot Fiziksel Özellikleri (PathPlanner):
+  - Kütle:             ~27 kg (~60 lbs tahmini)
+  - Moment of Inertia: 6.0 kg*m²
+  - Wheel COF:         1.2 (sürtünme katsayısı)
+  - Current Limit:     40 Amps (drive motorlar)
+
+
+GÖRSEL TAKİP & APRİLTAG (Vision Tracking & AprilTag)
+================================================================================
+
+AprilTag Approach Özellikleri:
+  - Command:           ApproachToTagCommand
+  - Target Distance:   0.55 meters
+  - Max Track Range:   2.5 meters
+  - Alignment Criteria:
+    • Distance:        < 0.65m
+    • Rotation Error:  < 1°
+    • Horizontal:      < 0.3 offset
+
+Vision PID Kontrolü:
+  X Control (Yatay):   P=0.04, I=0.0, D=0.0
+  Y Control (Mesafe):  P=1.5,  I=0.0, D=0.0
+  Rotation Control:    P=0.04, I=0.0, D=0.0
+
+FRC 2025 Reef Konumları (6 adet):
+  Reef 1:  (3.78, 2.83) @ -120°  | Blue: 17 | Red: 8
+  Reef 2:  (3.14, 4.02) @ 180°   | Blue: 18 | Red: 7
+  Reef 3:  (3.81, 5.21) @ 120°   | Blue: 19 | Red: 6
+  Reef 4:  (5.21, 5.21) @ 60°    | Blue: 20 | Red: 11
+  Reef 5:  (5.88, 4.02) @ 0°     | Blue: 21 | Red: 10
+  Reef 6:  (5.16, 2.82) @ -60°   | Blue: 22 | Red: 9
+
+
+SÜRÜCÜ KONTROLLERI (Driver Controls)
+================================================================================
+
+Controller:            Xbox Controller (Port 0)
+Deadband:              10% (hem hız hem rotasyon için)
+
+Sürüş Kontrolleri:
+  - Left Stick Y:      İleri/Geri (Field-Centric X)
+  - Left Stick X:      Sola/Sağa (Field-Centric Y)
+  - Right Stick X:     Dönüş (saat yönü tersi)
+
+Buton Atamaları:
+  - A Button:          AprilTag'e yaklaşma (while held)
+  - B Button:          Tekerlekleri yönlendirme modu
+  - Left Bumper:       Field-centric reset (alliance-aware)
+  - Right Bumper:      Fren modu (X formation)
+
+
+SİMÜLASYON PARAMETRELERİ (Simulation Parameters)
+================================================================================
+Simulation Enabled:    Yes
+Loop Period:           5ms (200 Hz)
+
+Simulasyon Değerleri:
+  Steer Inertia:       0.01 kg*m²
+  Drive Inertia:       0.01 kg*m²
+  Steer Friction:      0.2V
+  Drive Friction:      0.2V
+
+
+TELEMETRY & LOGGING
+================================================================================
+
+SignalLogger:          Aktif (CTRE Phoenix 6)
+SmartDashboard:        Aktif
+  - Auto Chooser:      PathPlanner Auto Builder
+  - AprilTag Debug:    Mesafe, rotasyon, hız bilgileri
+  - Vision Status:     Target ID, offsets, errors
+
+Hoot Logging:          "./logs/example.hoot"
+
+
+NAMED COMMANDS (Otonom için)
+================================================================================
+Kayıtlı Komutlar:
+  - "ApproachToTag":   Limelight ile AprilTag'e yaklaşma
+
+
+PROJE YAPISI (Project Structure)
+================================================================================
+
+Ana Sınıflar:
+  - frc.robot.Robot                      : Ana robot sınıfı
+  - frc.robot.RobotContainer             : Subsystem & command container
+  - frc.robot.subsystems.CommandSwerveDrivetrain
+  - frc.robot.commands.ApproachToTagCommand
+  - frc.robot.generated.TunerConstants   : CTRE Tuner X generated
+  - frc.robot.LimelightHelpers           : Limelight utility library
+  - frc.robot.Telemetry                  : Telemetry handler
+
+Konfigürasyon Dosyaları:
+  - build.gradle                         : Gradle build config
+  - vendordeps/Phoenix6.json             : CTRE Phoenix 6 library
+  - .wpilib/wpilib_preferences.json      : Team & project settings
+
+
+NOTLAR & ÖNERILER
+================================================================================
+
+1. PathPlanner 2026 Güncellemesi:
+   PathPlanner kütüphanesi şu anda 2025.2.7 versiyonu kullanılıyor.
+   Resmi 2026 versiyonu yayınlandığında güncelleme yapılmalı.
+   Güncelleme için: build.gradle dosyasındaki dependency güncellenmeli.
+
+2. Encoder Kalibrasyonu:
+   Tüm CANcoder offset değerleri kalibre edilmiş durumda.
+   Robot yeniden kalibre edilirse TunerConstants.java güncellenmeli.
+
+3. PID Tuning:
+   Mevcut PID değerleri temel ayarlar içindir.
+   Robot davranışına göre fine-tuning yapılabilir:
+   - Steer: TunerConstants.java -> steerGains
+   - Drive: TunerConstants.java -> driveGains
+   - Vision: ApproachToTagCommand.java -> PID controllers
+
+4. Alliance Strategy:
+   Robot otomatik olarak alliance rengine göre yönünü ayarlıyor.
+   Field-centric mode Blue=0°, Red=180° olarak çalışır.
+
+5. Safety Features:
+   - Steer motor current limit: 60A (brownout koruması)
+   - Vision max distance: 2.5m (güvenli mesafe)
+   - Automatic brake mode when disabled
+
+
+BAKIM & KONTROL LİSTESİ
+================================================================================
+
+Maç Öncesi Kontroller:
+  [ ] CANivore bağlantısı kontrol
+  [ ] Tüm motor ID'leri doğru
+  [ ] Pigeon 2 IMU kalibrasyonu
+  [ ] CANcoder offset'leri doğru
+  [ ] Limelight bağlantısı ve kalibrasyonu
+  [ ] Battery voltage > 12.0V
+  [ ] Controller pairing
+  [ ] Alliance station seçimi
+
+Yazılım Güncellemeleri:
+  [ ] Robot code deploy
+  [ ] PathPlanner paths sync
+  [ ] Limelight pipeline kontrol
+  [ ] Driver station log temizliği
+
+
+ILETIŞIM & DESTEK
+================================================================================
+Team Number:           9028
+Framework:             WPILib (https://docs.wpilib.org)
+CTRE Support:          https://v6.docs.ctr-electronics.com
+PathPlanner Docs:      https://pathplanner.dev
+Limelight Docs:        https://docs.limelightvision.io
+
+
+================================================================================
+                           Son Güncelleme: 2026-01-11
+                    Bu dosya robot kodundan otomatik oluşturuldu
+================================================================================
