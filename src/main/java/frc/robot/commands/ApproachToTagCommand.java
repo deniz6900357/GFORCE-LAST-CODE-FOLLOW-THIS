@@ -50,14 +50,14 @@ public class ApproachToTagCommand extends ConditionalCommand {
     private static final double DEADBAND = 0.1;
 
     /**
-     * Represents a reef position with its pose and associated AprilTag IDs for each alliance.
+     * Represents a Hub face position with its pose and associated AprilTag IDs for each alliance.
      */
-    public static class Reef {
+    public static class HubFace {
         Pose2d pose;
         int blueID;
         int redID;
 
-        Reef(Pose2d pose, int blueID, int redID) {
+        HubFace(Pose2d pose, int blueID, int redID) {
             this.blueID = blueID;
             this.pose = pose;
             this.redID = redID;
@@ -71,28 +71,75 @@ public class ApproachToTagCommand extends ConditionalCommand {
     }
 
     /**
-     * FRC 2025 reef positions with their rotations and AprilTag IDs.
-     * Each reef has a specific approach angle that the robot should face when approaching.
+     * FRC 2026 REBUILT - Hub AprilTag pozisyonları ve ID'leri
+     *
+     * Saha düzeni (Scoring Table'dan bakınca):
+     * - Kırmızı Hub: Sol tarafta (Tag'ler: 1-12 arası)
+     * - Mavi Hub: Sağ tarafta (Tag'ler: 17-28 arası)
+     *
+     * Hub altıgen şeklinde, her yüzde 2 tag var (üst/alt veya yan yana)
+     * Açılar robotun Hub'a yaklaşırken bakması gereken yönü belirtir.
      */
-    public static List<Reef> reefs = Arrays.asList(
-            new Reef(new Pose2d(3.78, 2.83, new Rotation2d(Units.degreesToRadians(-120))), 17, 8),
-            new Reef(new Pose2d(3.14, 4.02, new Rotation2d(Units.degreesToRadians(180))), 18, 7),
-            new Reef(new Pose2d(3.81, 5.21, new Rotation2d(Units.degreesToRadians(120))), 19, 6),
-            new Reef(new Pose2d(5.21, 5.21, new Rotation2d(Units.degreesToRadians(60))), 20, 11),
-            new Reef(new Pose2d(5.88, 4.02, new Rotation2d(Units.degreesToRadians(0))), 21, 10),
-            new Reef(new Pose2d(5.16, 2.82, new Rotation2d(Units.degreesToRadians(-60))), 22, 9)
+    public static List<HubFace> hubFaces = Arrays.asList(
+            // Hub Face - Üst (Scoring Table'a uzak, yukarı bakan)
+            // Kırmızı: 7, 6 | Mavi: 17, 28
+            new HubFace(new Pose2d(4.50, 6.00, new Rotation2d(Units.degreesToRadians(180))), 17, 7),
+            new HubFace(new Pose2d(4.50, 6.00, new Rotation2d(Units.degreesToRadians(180))), 28, 6),
+
+            // Hub Face - Sağ Üst
+            // Kırmızı: 8/5 (üst/alt), 4/3 | Mavi: 18/27, 26/25
+            new HubFace(new Pose2d(5.50, 5.00, new Rotation2d(Units.degreesToRadians(120))), 18, 8),
+            new HubFace(new Pose2d(5.50, 5.00, new Rotation2d(Units.degreesToRadians(120))), 27, 5),
+            new HubFace(new Pose2d(5.50, 5.00, new Rotation2d(Units.degreesToRadians(60))), 26, 4),
+            new HubFace(new Pose2d(5.50, 5.00, new Rotation2d(Units.degreesToRadians(60))), 25, 3),
+
+            // Hub Face - Alt (Scoring Table'a yakın, aşağı bakan)
+            // Kırmızı: 12, 1 | Mavi: 22, 23
+            new HubFace(new Pose2d(4.50, 2.00, new Rotation2d(Units.degreesToRadians(0))), 22, 12),
+            new HubFace(new Pose2d(4.50, 2.00, new Rotation2d(Units.degreesToRadians(0))), 23, 1),
+
+            // Hub Face - Sol Üst
+            // Kırmızı: 9/10, 11/2 | Mavi: 19/20, 21/24
+            new HubFace(new Pose2d(3.50, 5.00, new Rotation2d(Units.degreesToRadians(-120))), 19, 9),
+            new HubFace(new Pose2d(3.50, 5.00, new Rotation2d(Units.degreesToRadians(-120))), 20, 10),
+            new HubFace(new Pose2d(3.50, 5.00, new Rotation2d(Units.degreesToRadians(-60))), 21, 11),
+            new HubFace(new Pose2d(3.50, 5.00, new Rotation2d(Units.degreesToRadians(-60))), 24, 2)
     );
 
     /**
-     * Gets the desired approach rotation for a specific AprilTag/reef.
+     * FRC 2026 REBUILT - Diğer Saha Elemanları AprilTag ID'leri
+     *
+     * CORAL STATION (Parça İstasyonları):
+     * - Kırmızı: Tag 14 (üst), Tag 13 (alt) - Sol alt köşe
+     * - Mavi: Tag 29 (üst), Tag 30 (alt) - Sağ üst köşe
+     *
+     * PROCESSOR (İşlemci):
+     * - Kırmızı: Tag 16 (üst), Tag 15 (alt) - Sol duvar
+     * - Mavi: Tag 31 (üst), Tag 32 (alt) - Sağ duvar
+     */
+
+    // Coral Station Tag ID'leri
+    public static final int RED_CORAL_STATION_TOP = 14;
+    public static final int RED_CORAL_STATION_BOTTOM = 13;
+    public static final int BLUE_CORAL_STATION_TOP = 29;
+    public static final int BLUE_CORAL_STATION_BOTTOM = 30;
+
+    // Processor Tag ID'leri
+    public static final int RED_PROCESSOR_TOP = 16;
+    public static final int RED_PROCESSOR_BOTTOM = 15;
+    public static final int BLUE_PROCESSOR_TOP = 31;
+    public static final int BLUE_PROCESSOR_BOTTOM = 32;
+
+    /**
+     * Gets the desired approach rotation for a specific AprilTag/Hub face.
      *
      * @param id The AprilTag ID
-     * @return The rotation the robot should face when approaching this reef
+     * @return The rotation the robot should face when approaching this Hub face
      */
-    public static Rotation2d getReefRotation(double id) {
-        for (Reef reef : reefs) {
-            if (reef.redID == id || reef.blueID == id) {
-                return reef.pose.getRotation();
+    public static Rotation2d getHubRotation(double id) {
+        for (HubFace hubFace : hubFaces) {
+            if (hubFace.redID == id || hubFace.blueID == id) {
+                return hubFace.pose.getRotation();
             }
         }
         return new Rotation2d();
