@@ -20,7 +20,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 
-import frc.robot.commands.ApproachToTagCommand;
+import frc.robot.commands.AimToHubCommand;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 
@@ -67,7 +67,7 @@ public class RobotContainer {
         // Register ApproachToTag command for autonomous use
         // Usage: Add "ApproachToTag" event marker in PathPlanner
         // Note: In autonomous, there's no joystick input so robot will only auto-aim without moving
-        NamedCommands.registerCommand("ApproachToTag", new ApproachToTagCommand(
+        NamedCommands.registerCommand("ApproachToTag", new AimToHubCommand(
             drivetrain,
             () -> 0.0,        // No forward movement in auto
             () -> 0.0,        // No strafe movement in auto
@@ -115,7 +115,7 @@ public class RobotContainer {
 
         // Approach AprilTag with Limelight - hold A button
         // Robot will automatically aim at AprilTag while driver retains movement control
-        joystick.a().whileTrue(new ApproachToTagCommand(
+        joystick.a().whileTrue(new AimToHubCommand(
             drivetrain,
             joystick::getLeftY,   // Forward/backward control
             joystick::getLeftX,   // Strafe left/right control

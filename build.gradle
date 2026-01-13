@@ -63,8 +63,8 @@ dependencies {
     implementation wpi.java.deps.wpilib()
     implementation wpi.java.vendor.java()
 
-    // PathPlanner library - using 2025 version with 2026
-    implementation 'com.pathplanner.lib:PathplannerLib-java:2025.2.7'
+    // PathPlanner library - 2026 season
+    implementation 'com.pathplanner.lib:PathplannerLib-java:2026.1.2'
 
     roborioDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.roborio)
     roborioDebug wpi.java.vendor.jniDebug(wpi.platforms.roborio)
