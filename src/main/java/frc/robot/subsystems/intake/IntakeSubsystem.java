@@ -4,6 +4,7 @@ import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 
@@ -15,9 +16,7 @@ import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.RobotConstants.PortConstants.CAN;
 import frc.robot.RobotConstants.IntakeConstants;
-import frc.robot.RobotConstants.IntakeConstants;
 
-import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.spark.ClosedLoopSlot;
 import com.revrobotics.spark.SparkClosedLoopController;
 
@@ -30,6 +29,7 @@ public class IntakeSubsystem extends SubsystemBase {
     static SparkClosedLoopController intakeMotor1Controller;
     private double targetSetpoint = 0; // Sınıf seviyesinde değişken
 
+    @SuppressWarnings("removal")
     public IntakeSubsystem() {
         if (RobotBase.isReal()) {
             intakeMotor1 = new SparkMax(CAN.INTAKE_MOTOR_1, MotorType.kBrushless);
@@ -48,10 +48,9 @@ public class IntakeSubsystem extends SubsystemBase {
 
             intakeMotor2Config.follow(CAN.INTAKE_MOTOR_1, true);
 
-            intakeMotor1.configure(intakeMotor1Config, ResetMode.kResetSafeParameters,
-                    PersistMode.kPersistParameters);
-            intakeMotor2.configure(intakeMotor2Config, ResetMode.kResetSafeParameters,
-                    PersistMode.kPersistParameters);
+            // Apply configuration - deprecated API but still functional in REVLib 2026
+            intakeMotor1.configure(intakeMotor1Config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+            intakeMotor2.configure(intakeMotor2Config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
         }
     }
 

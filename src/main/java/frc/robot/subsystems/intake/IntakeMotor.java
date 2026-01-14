@@ -1,8 +1,6 @@
 package frc.robot.subsystems.intake;
 
 import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkBase.PersistMode;
-import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 
@@ -18,6 +16,7 @@ public class IntakeMotor extends SubsystemBase {
     private final SparkMax intakeMotor;
     private final SparkMaxConfig intakeMotorConfig = new SparkMaxConfig();
 
+    @SuppressWarnings("removal")
     public IntakeMotor() {
         if (RobotBase.isReal()) {
             intakeMotor = new SparkMax(CAN.INTAKE_SAKSO_MOTOR, MotorType.kBrushless);
@@ -25,8 +24,10 @@ public class IntakeMotor extends SubsystemBase {
             intakeMotorConfig.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
             intakeMotorConfig.smartCurrentLimit(40);
 
-            // Apply configuration
-            intakeMotor.configure(intakeMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+            // Apply configuration - deprecated API but still functional in REVLib 2026
+            intakeMotor.configure(intakeMotorConfig,
+                com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
+                com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
         } else {
             intakeMotor = null;
         }
