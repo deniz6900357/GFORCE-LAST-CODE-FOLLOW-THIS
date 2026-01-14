@@ -31,28 +31,28 @@ public class IntakeSubsystem extends SubsystemBase {
     private double targetSetpoint = 0; // Sınıf seviyesinde değişken
 
     public IntakeSubsystem() {
-        intakeMotor1 = new SparkMax(CAN.INTAKE_MOTOR_1, MotorType.kBrushless);
-        intakeMotor2 = new SparkMax(CAN.INTAKE_MOTOR_2, MotorType.kBrushless);
+        if (RobotBase.isReal()) {
+            intakeMotor1 = new SparkMax(CAN.INTAKE_MOTOR_1, MotorType.kBrushless);
+            intakeMotor2 = new SparkMax(CAN.INTAKE_MOTOR_2, MotorType.kBrushless);
 
-        intakeMotor1Controller = intakeMotor1.getClosedLoopController();
+            intakeMotor1Controller = intakeMotor1.getClosedLoopController();
 
-        intakeMotor1Config = new SparkMaxConfig();
-        intakeMotor2Config = new SparkMaxConfig();
+            intakeMotor1Config = new SparkMaxConfig();
+            intakeMotor2Config = new SparkMaxConfig();
 
-        intakeMotor1Config.closedLoop.maxMotion.allowedClosedLoopError(.75);
-        intakeMotor1Config.closedLoop.maxMotion.maxVelocity(IntakeConstants.MAX_MOTOR_RPM);
-        intakeMotor1Config.closedLoop.maxMotion.maxAcceleration(IntakeConstants.MAX_MOTOR_ACCELERATION);
+            intakeMotor1Config.closedLoop.maxMotion.allowedClosedLoopError(.75);
+            intakeMotor1Config.closedLoop.maxMotion.maxVelocity(IntakeConstants.MAX_MOTOR_RPM);
+            intakeMotor1Config.closedLoop.maxMotion.maxAcceleration(IntakeConstants.MAX_MOTOR_ACCELERATION);
 
-        intakeMotor1Config.closedLoop.pid(0.5, 0.0, 2);
+            intakeMotor1Config.closedLoop.pid(0.5, 0.0, 2);
 
-        intakeMotor2Config.follow(CAN.INTAKE_MOTOR_1, true);
+            intakeMotor2Config.follow(CAN.INTAKE_MOTOR_1, true);
 
-        intakeMotor1.configure(intakeMotor1Config, ResetMode.kResetSafeParameters,
-                PersistMode.kPersistParameters);
-        intakeMotor2.configure(intakeMotor2Config, ResetMode.kResetSafeParameters,
-                PersistMode.kPersistParameters);
-
-        // } else {
+            intakeMotor1.configure(intakeMotor1Config, ResetMode.kResetSafeParameters,
+                    PersistMode.kPersistParameters);
+            intakeMotor2.configure(intakeMotor2Config, ResetMode.kResetSafeParameters,
+                    PersistMode.kPersistParameters);
+        }
     }
 
     // Setpoint değerini limitlere göre sınırlayan yeni metod
@@ -85,15 +85,22 @@ public class IntakeSubsystem extends SubsystemBase {
 
     public void setEncoderValue(double value) {
         // In rotations
-        intakeMotor1.getEncoder().setPosition(value);
+        if (intakeMotor1 != null) {
+            intakeMotor1.getEncoder().setPosition(value);
+        }
     }
 
     public double getEncoderValue() {
-        return intakeMotor1.getEncoder().getPosition();
+        if (intakeMotor1 != null) {
+            return intakeMotor1.getEncoder().getPosition();
+        }
+        return 0.0;
     }
 
     public void setMotorVoltage(double volts) {
-        intakeMotor1.setVoltage(volts);
+        if (intakeMotor1 != null) {
+            intakeMotor1.setVoltage(volts);
+        }
     }
 
     public Command goToSetpointCommand(double setpoint) {
@@ -114,6 +121,8 @@ public class IntakeSubsystem extends SubsystemBase {
 
 
     public void moveAtSpeed(double speed) {
+        if (intakeMotor1 == null) return;
+
         // Encoder değeri limitlere ulaştıysa o yönde hareketi durdur
         double currentPosition = intakeMotor1.getEncoder().getPosition();
 
@@ -132,11 +141,17 @@ public class IntakeSubsystem extends SubsystemBase {
     // }
 
     public double getCurrentDraw() {
-        return intakeMotor1.getOutputCurrent();
+        if (intakeMotor1 != null) {
+            return intakeMotor1.getOutputCurrent();
+        }
+        return 0.0;
     }
 
     public RelativeEncoder getEncoder() {
-        return intakeMotor1.getEncoder();
+        if (intakeMotor1 != null) {
+            return intakeMotor1.getEncoder();
+        }
+        return null;
     }
 
     @Override

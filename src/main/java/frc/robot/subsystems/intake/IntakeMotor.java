@@ -7,6 +7,7 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 
 import edu.wpi.first.epilogue.Logged;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.StartEndCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -18,21 +19,29 @@ public class IntakeMotor extends SubsystemBase {
     private final SparkMaxConfig intakeMotorConfig = new SparkMaxConfig();
 
     public IntakeMotor() {
-        intakeMotor = new SparkMax(CAN.INTAKE_SAKSO_MOTOR, MotorType.kBrushless);
+        if (RobotBase.isReal()) {
+            intakeMotor = new SparkMax(CAN.INTAKE_SAKSO_MOTOR, MotorType.kBrushless);
 
-        intakeMotorConfig.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
-        intakeMotorConfig.smartCurrentLimit(40);
+            intakeMotorConfig.idleMode(com.revrobotics.spark.config.SparkBaseConfig.IdleMode.kBrake);
+            intakeMotorConfig.smartCurrentLimit(40);
 
-        // Apply configuration
-        intakeMotor.configure(intakeMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+            // Apply configuration
+            intakeMotor.configure(intakeMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        } else {
+            intakeMotor = null;
+        }
     }
 
     public void setSpeed(double speed) {
-        intakeMotor.set(speed);
+        if (intakeMotor != null) {
+            intakeMotor.set(speed);
+        }
     }
 
     public void stop() {
-        intakeMotor.stopMotor();
+        if (intakeMotor != null) {
+            intakeMotor.stopMotor();
+        }
     }
 
     public Command intakeInCommand(double speed) {

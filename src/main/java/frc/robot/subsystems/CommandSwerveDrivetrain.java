@@ -256,16 +256,20 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      * This fuses vision data with wheel odometry for more accurate localization.
      */
     private void updateVisionMeasurements() {
-        // Get pose estimate from Limelight based on alliance
+        // Tell Limelight the robot's current orientation for better pose estimation
+        LimelightHelpers.SetRobotOrientation("limelight", getState().Pose.getRotation().getDegrees(), 0, 0, 0, 0, 0);
+
+        // Get MegaTag2 pose estimate from Limelight based on alliance
+        // MegaTag2 uses multiple tags for more accurate pose estimation
         LimelightHelpers.PoseEstimate poseEstimate;
         if (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue) {
-            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue("limelight");
+            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2("limelight");
         } else {
-            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed("limelight");
+            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed_MegaTag2("limelight");
         }
 
         // Only use vision data if we have valid tag data
-        if (poseEstimate.tagCount > 0) {
+        if (poseEstimate != null && poseEstimate.tagCount > 0) {
             // Calculate vision measurement standard deviation based on factors:
             // - Distance to tags (farther = less accurate)
             // - Number of tags (more tags = more accurate)
