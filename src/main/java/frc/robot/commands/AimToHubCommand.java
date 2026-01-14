@@ -223,8 +223,8 @@ public class AimToHubCommand extends ConditionalCommand {
                     if (Math.abs(leftY) < DEADBAND) leftY = 0.0;
                     if (Math.abs(leftX) < DEADBAND) leftX = 0.0;
 
-                    double forwardSpeed = leftY * maxSpeed;
-                    double strafeSpeed = leftX * maxSpeed;
+                    double forwardSpeed = -leftY * maxSpeed;  // Negative for correct direction
+                    double strafeSpeed = -leftX * maxSpeed;   // Negative for correct direction
 
                     // Get robot pose from MegaTag
                     Pose2d robotPose;
@@ -328,8 +328,8 @@ public class AimToHubCommand extends ConditionalCommand {
                     if (Math.abs(leftX) < DEADBAND) leftX = 0.0;
                     drivetrain.setControl(
                         new SwerveRequest.FieldCentric()
-                            .withVelocityX(leftY * maxSpeed)
-                            .withVelocityY(leftX * maxSpeed)
+                            .withVelocityX(-leftY * maxSpeed)  // Negative for correct direction
+                            .withVelocityY(-leftX * maxSpeed)  // Negative for correct direction
                             .withRotationalRate(0)
                             .withDriveRequestType(DriveRequestType.Velocity)
                     );

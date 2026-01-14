@@ -74,6 +74,8 @@ public class TunerConstants {
         );
     private static final CANcoderConfiguration encoderInitialConfigs = new CANcoderConfiguration();
     // Configs for the Pigeon 2; leave this null to skip applying Pigeon 2 configs
+    // NOTE: Gyro scaling issue exists - 1° physical = much more in simulation
+    // This is likely a firmware or CAN bus timing issue requiring Phoenix Tuner X calibration
     private static final Pigeon2Configuration pigeonConfigs = null;
 
 

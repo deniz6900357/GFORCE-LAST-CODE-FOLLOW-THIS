@@ -13,7 +13,6 @@ import com.pathplanner.lib.auto.NamedCommands;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -89,8 +88,8 @@ public class RobotContainer {
         drivetrain.setDefaultCommand(
             // Drivetrain will execute this command periodically
             drivetrain.applyRequest(() ->
-                drive.withVelocityX(joystick.getLeftY() * MaxSpeed) // Drive forward with Y (forward)
-                    .withVelocityY(joystick.getLeftX() * MaxSpeed) // Drive left with X (left)
+                drive.withVelocityX(-joystick.getLeftY() * MaxSpeed) // Drive forward with negative Y (forward)
+                    .withVelocityY(-joystick.getLeftX() * MaxSpeed) // Drive left with negative X (left)
                     .withRotationalRate(-joystick.getRightX() * MaxAngularRate) // Drive counterclockwise with negative X (left)
             )
         );
@@ -107,14 +106,10 @@ public class RobotContainer {
         ));
 
         // reset the field-centric heading on left bumper press
-        // Resets gyro to alliance-appropriate forward direction
+        // Resets gyro to 0 degrees (toward red alliance wall) for consistent controls
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> {
-            var alliance = DriverStation.getAlliance();
-            Rotation2d newRotation = alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red
-                ? Rotation2d.k180deg  // Red alliance faces blue wall
-                : Rotation2d.kZero;   // Blue alliance faces red wall
             var currentPose = drivetrain.getState().Pose;
-            drivetrain.resetPose(new Pose2d(currentPose.getTranslation(), newRotation));
+            drivetrain.resetPose(new Pose2d(currentPose.getTranslation(), Rotation2d.kZero));
         }));
 
         // brake on right bumper
