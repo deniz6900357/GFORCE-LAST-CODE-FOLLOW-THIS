@@ -96,42 +96,23 @@ public class IntakeSubsystem extends SubsystemBase {
         intakeMotor1.setVoltage(volts);
     }
 
-    public Command goToCoralScoreSetpoint(int level) {
+    public Command goToSetpointCommand(double setpoint) {
+        return new InstantCommand(() -> goToSetpoint(setpoint), this);
+    }
+
+    /**
+     * Motoru belirtilen tur sayısı kadar hareket ettirir (mevcut pozisyondan relatif)
+     * @param rotations Hareket edilecek tur sayısı (pozitif = yukarı, negatif = aşağı)
+     */
+    public Command moveRelativeCommand(double rotations) {
         return new InstantCommand(() -> {
-            double setpoint;
-            if (RobotBase.isReal()) {
-                if (level == 1) {
-                    setpoint = IntakeConstants.HeightSetpoints.intake.L1;
-                } else if (level == 2) {
-                    setpoint = IntakeConstants.HeightSetpoints.intake.L2;
-                } else if (level == 3) {
-                    setpoint = IntakeConstants.HeightSetpoints.intake.L3;
-                } else {
-                    setpoint = IntakeConstants.HeightSetpoints.HOME;
-                }
-                goToSetpoint(setpoint);
-            }
+            double currentPos = getEncoderValue();
+            double targetPos = currentPos + rotations;
+            goToSetpoint(targetPos);
         }, this);
     }
 
-    public Command intakeCommand(int level) {
-        return new InstantCommand(() -> {
-            double setpoint;
-            if (RobotBase.isReal()) {
-                if (level == 0) {
-                    setpoint = IntakeConstants.HeightSetpoints.HOME;
-                } else {
-                    setpoint = IntakeConstants.HeightSetpoints.intake.L1;
-                }
-                goToSetpoint(setpoint);
-            }
 
-        }, this);
-    }
-
-    
-
-    
     public void moveAtSpeed(double speed) {
         // Encoder değeri limitlere ulaştıysa o yönde hareketi durdur
         double currentPosition = intakeMotor1.getEncoder().getPosition();
@@ -144,7 +125,7 @@ public class IntakeSubsystem extends SubsystemBase {
         }
     }
 
-    // public Command homeIntake() {
+    // public Command homeElevator() {
     // return this.run(() -> intakeMotor1.setVoltage(1)).until(() ->
     // getCurrentDraw() > 30.0)
     // .finallyDo(() -> setEncoderValue(0));

@@ -246,6 +246,60 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                 m_hasAppliedOperatorPerspective = true;
             });
         }
+
+        // Update pose estimation with MegaTag2 vision measurements
+        updateVisionMeasurements();
+    }
+
+    /**
+     * Updates the pose estimator with vision measurements from Limelight MegaTag2.
+     * This fuses vision data with wheel odometry for more accurate localization.
+     */
+    private void updateVisionMeasurements() {
+        // Get pose estimate from Limelight based on alliance
+        LimelightHelpers.PoseEstimate poseEstimate;
+        if (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue) {
+            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue("limelight");
+        } else {
+            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed("limelight");
+        }
+
+        // Only use vision data if we have valid tag data
+        if (poseEstimate.tagCount > 0) {
+            // Calculate vision measurement standard deviation based on factors:
+            // - Distance to tags (farther = less accurate)
+            // - Number of tags (more tags = more accurate)
+            // - Tag area (smaller = less accurate/farther away)
+
+            double xyStdDev = 0.5; // Base standard deviation in meters
+            double thetaStdDev = 6.0; // Base standard deviation in degrees
+
+            // Increase std dev based on distance to tags
+            double avgTagDistance = poseEstimate.avgTagDist;
+            if (avgTagDistance > 4.0) {
+                xyStdDev *= 2.0; // Double uncertainty beyond 4 meters
+                thetaStdDev *= 2.0;
+            }
+
+            // Decrease std dev if we see multiple tags (more confident)
+            if (poseEstimate.tagCount >= 2) {
+                xyStdDev *= 0.5;
+                thetaStdDev *= 0.5;
+            }
+
+            // Create standard deviation matrix [x, y, theta]
+            var visionStdDevs = new Matrix<>(N3.instance, N1.instance);
+            visionStdDevs.set(0, 0, xyStdDev);
+            visionStdDevs.set(1, 0, xyStdDev);
+            visionStdDevs.set(2, 0, Math.toRadians(thetaStdDev));
+
+            // Add vision measurement to pose estimator with timestamp and std devs
+            addVisionMeasurement(
+                poseEstimate.pose,
+                poseEstimate.timestampSeconds,
+                visionStdDevs
+            );
+        }
     }
 
     private void startSimThread() {
