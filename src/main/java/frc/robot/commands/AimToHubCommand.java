@@ -9,34 +9,32 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.ConditionalCommand;
 import edu.wpi.first.wpilibj2.command.FunctionalCommand;
-import frc.robot.LimelightHelpers;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * Command to aim robot rotation at Hub AprilTag using Limelight vision tracking.
+ * Command to aim robot rotation at nearest Hub face using pose estimation.
  *
- * Based on Limelight visual servoing tutorial:
- * https://docs.limelightvision.io/docs/docs-limelight/tutorials/tutorial-aiming-with-visual-servoing
+ * The robot uses its odometry (fused with vision measurements from Limelight)
+ * to determine its field position, then calculates the angle to the nearest
+ * Hub face belonging to its alliance. Uses proportional control to automatically
+ * aim at the Hub while the driver retains full translational control (forward/strafe).
  *
- * The robot uses the tx (horizontal offset) value from Limelight
- * with proportional control to automatically aim at the AprilTag
- * while the driver retains full translational control (forward/strafe).
+ * Alliance-aware: Blue alliance aims at Blue Hub (tags 17-28),
+ *                 Red alliance aims at Red Hub (tags 1-12)
  */
 public class AimToHubCommand extends ConditionalCommand {
 
-    // Proportional control constant for tx-based aiming (when tag visible)
-    private static final double KP_TX = -0.05;
-
-    // Proportional control constant for pose-based aiming (when tag not visible)
+    // Proportional control constant for pose-based aiming
     private static final double KP_POSE = 0.06;
 
     // Minimum command to overcome friction - prevents robot from getting "stuck"
@@ -71,18 +69,17 @@ public class AimToHubCommand extends ConditionalCommand {
     }
 
     /**
-     * FRC 2026 REBUILT - Hub AprilTag pozisyonları ve ID'leri
+     * FRC 2026 REBUILT - Hub merkez koordinatları
      *
-     * Resmi WPILib koordinatları (2026-rebuilt-andymark.json)
+     * CSV'den hesaplanan (2026-rebuilt-andymark.csv)
      * Saha boyutu: 16.518m x 8.043m
      *
-     * Saha düzeni:
-     * - Kırmızı Hub: Merkez (Tag'ler: 1-12 arası) - X: ~11.9m, Y: ~4.0m
-     * - Mavi Hub: Merkez (Tag'ler: 17-28 arası) - X: ~4.6m, Y: ~4.0m
-     *
-     * Her Hub altıgen şeklinde, her yüzde 2 tag var
-     * Pozisyonlar tag'in kendisinin konumu, robot yaklaşma açısı eklenmeli
+     * Hub merkez noktaları (12 AprilTag'in ortalaması):
+     * - Blue Hub Center: X: 4.552m, Y: 4.021m (Tag'ler: 17-28)
+     * - Red Hub Center: X: 11.961m, Y: 4.021m (Tag'ler: 1-12)
      */
+    private static final Translation2d BLUE_HUB_CENTER = new Translation2d(4.552, 4.021);
+    private static final Translation2d RED_HUB_CENTER = new Translation2d(11.961, 4.021);
     public static List<HubFace> hubFaces = Arrays.asList(
             // BLUE HUB (Tag 17-28) - Sol taraf, resmi açılarla
             // Tag 17: 0° (alt yüz)
@@ -226,74 +223,51 @@ public class AimToHubCommand extends ConditionalCommand {
                     double forwardSpeed = -leftY * maxSpeed;  // Negative for correct direction
                     double strafeSpeed = -leftX * maxSpeed;   // Negative for correct direction
 
-                    // Get robot pose from MegaTag
-                    Pose2d robotPose;
-                    if (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue) {
-                        robotPose = LimelightHelpers.getBotPoseEstimate_wpiBlue("limelight").pose;
-                    } else {
-                        robotPose = LimelightHelpers.getBotPoseEstimate_wpiRed("limelight").pose;
-                    }
+                    // Get robot pose from drivetrain odometry (fused with vision)
+                    Pose2d robotPose = drivetrain.getState().Pose;
 
-                    // Get current alliance
+                    // Get current alliance and select hub center
                     Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
+                    Translation2d hubCenter = (currentAlliance == Alliance.Blue)
+                        ? BLUE_HUB_CENTER
+                        : RED_HUB_CENTER;
 
-                    // Find nearest Hub face for our alliance
-                    HubFace nearestHub = null;
-                    double minDistance = Double.MAX_VALUE;
+                    // Calculate angle from robot to hub center
+                    Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
+                    double distanceToHub = robotToHub.getNorm();
+                    Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
 
-                    for (HubFace hub : hubFaces) {
-                        // Only consider Hubs for our alliance
-                        int hubID = hub.getID();
-                        if (hubID == 0) continue; // Skip invalid IDs
-
-                        // Check if this Hub belongs to our alliance
-                        boolean isBlueHub = (hubID >= 17 && hubID <= 28);
-                        boolean isRedHub = (hubID >= 1 && hubID <= 12);
-
-                        if (currentAlliance == Alliance.Blue && !isBlueHub) continue;
-                        if (currentAlliance == Alliance.Red && !isRedHub) continue;
-
-                        double distance = robotPose.getTranslation().getDistance(hub.pose.getTranslation());
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            nearestHub = hub;
-                        }
-                    }
+                    // Calculate rotation error (how much robot needs to turn)
+                    double rotationError = getModuloRotation(
+                        angleToHub.getDegrees() - robotPose.getRotation().getDegrees()
+                    );
 
                     double steeringAdjust = 0.0;
 
-                    if (nearestHub != null) {
-                        // Calculate angle to Hub
-                        Rotation2d targetRotation = nearestHub.pose.getRotation();
-                        double rotationError = getModuloRotation(
-                            targetRotation.getDegrees() - robotPose.getRotation().getDegrees()
-                        );
+                    // Apply proportional control
+                    if (Math.abs(rotationError) > ERROR_THRESHOLD) {
+                        steeringAdjust = KP_POSE * rotationError;
 
-                        // Apply proportional control
-                        if (Math.abs(rotationError) > ERROR_THRESHOLD) {
-                            steeringAdjust = KP_POSE * rotationError;
-
-                            // Add minimum command to overcome friction
-                            if (rotationError < 0) {
-                                steeringAdjust -= MIN_COMMAND;
-                            } else {
-                                steeringAdjust += MIN_COMMAND;
-                            }
+                        // Add minimum command to overcome friction
+                        if (rotationError < 0) {
+                            steeringAdjust -= MIN_COMMAND;
                         } else {
-                            steeringAdjust = KP_POSE * rotationError;
+                            steeringAdjust += MIN_COMMAND;
                         }
-
-                        // Clamp steering to max angular rate
-                        steeringAdjust = Math.max(-maxAngularRate, Math.min(maxAngularRate, steeringAdjust));
-
-                        // Debug output
-                        SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
-                        SmartDashboard.putNumber("AimToHub/TargetRotation", targetRotation.getDegrees());
-                        SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
-                        SmartDashboard.putNumber("AimToHub/SteeringAdjust", steeringAdjust);
-                        SmartDashboard.putNumber("AimToHub/DistanceToHub", minDistance);
-                        SmartDashboard.putNumber("AimToHub/NearestHubID", nearestHub.getID());
+                    } else {
+                        steeringAdjust = KP_POSE * rotationError;
                     }
+
+                    // Clamp steering to max angular rate
+                    steeringAdjust = Math.max(-maxAngularRate, Math.min(maxAngularRate, steeringAdjust));
+
+                    // Debug output
+                    SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
+                    SmartDashboard.putNumber("AimToHub/TargetAngle", angleToHub.getDegrees());
+                    SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
+                    SmartDashboard.putNumber("AimToHub/SteeringAdjust", steeringAdjust);
+                    SmartDashboard.putNumber("AimToHub/DistanceToHub", distanceToHub);
+                    SmartDashboard.putString("AimToHub/TargetHub", currentAlliance == Alliance.Blue ? "Blue Hub" : "Red Hub");
 
                     SmartDashboard.putNumber("AimToHub/ForwardSpeed", forwardSpeed);
                     SmartDashboard.putNumber("AimToHub/StrafeSpeed", strafeSpeed);

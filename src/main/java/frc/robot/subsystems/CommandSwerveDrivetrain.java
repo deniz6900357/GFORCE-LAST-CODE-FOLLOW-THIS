@@ -253,6 +253,8 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
         // Debug: Log gyro yaw to SmartDashboard for troubleshooting
         SmartDashboard.putNumber("Drivetrain/Gyro Yaw (degrees)", getState().Pose.getRotation().getDegrees());
+        SmartDashboard.putNumber("Drivetrain/Pose X (m)", getState().Pose.getX());
+        SmartDashboard.putNumber("Drivetrain/Pose Y (m)", getState().Pose.getY());
     }
 
     /**
@@ -272,8 +274,46 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
             poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed_MegaTag2("limelight");
         }
 
+        // Debug: Show vision data availability
+        SmartDashboard.putBoolean("Vision/HasValidData", poseEstimate != null && poseEstimate.tagCount > 0);
+        if (poseEstimate != null) {
+            SmartDashboard.putNumber("Vision/TagCount", poseEstimate.tagCount);
+            SmartDashboard.putNumber("Vision/AvgTagDist", poseEstimate.avgTagDist);
+            SmartDashboard.putNumber("Vision/PoseX", poseEstimate.pose.getX());
+            SmartDashboard.putNumber("Vision/PoseY", poseEstimate.pose.getY());
+            SmartDashboard.putNumber("Vision/PoseRotation", poseEstimate.pose.getRotation().getDegrees());
+        }
+
         // Only use vision data if we have valid tag data
         if (poseEstimate != null && poseEstimate.tagCount > 0) {
+            // Get current odometry pose for comparison
+            Pose2d currentPose = getState().Pose;
+
+            // Calculate distance between vision pose and current odometry pose
+            double poseDifference = currentPose.getTranslation().getDistance(poseEstimate.pose.getTranslation());
+            double rotationDifference = Math.abs(
+                currentPose.getRotation().minus(poseEstimate.pose.getRotation()).getDegrees()
+            );
+
+            // Debug: Show pose difference
+            SmartDashboard.putNumber("Vision/PoseDifference (m)", poseDifference);
+            SmartDashboard.putNumber("Vision/RotationDifference (deg)", rotationDifference);
+
+            // Reject vision measurements that are too far from odometry (likely bad data)
+            // This prevents sudden jumps in pose estimation
+            final double MAX_POSE_DIFFERENCE_METERS = 0.5; // 50cm max jump
+            final double MAX_ROTATION_DIFFERENCE_DEGREES = 30.0; // 30 degree max jump
+
+            if (poseDifference > MAX_POSE_DIFFERENCE_METERS || rotationDifference > MAX_ROTATION_DIFFERENCE_DEGREES) {
+                SmartDashboard.putBoolean("Vision/MeasurementRejected", true);
+                SmartDashboard.putString("Vision/RejectReason",
+                    poseDifference > MAX_POSE_DIFFERENCE_METERS
+                        ? "Position jump too large"
+                        : "Rotation jump too large");
+                return; // Don't use this vision measurement
+            }
+            SmartDashboard.putBoolean("Vision/MeasurementRejected", false);
+
             // Calculate vision measurement standard deviation based on factors:
             // - Distance to tags (farther = less accurate)
             // - Number of tags (more tags = more accurate)
@@ -295,6 +335,9 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                 thetaStdDev *= 0.5;
             }
 
+            SmartDashboard.putNumber("Vision/XYStdDev", xyStdDev);
+            SmartDashboard.putNumber("Vision/ThetaStdDev", thetaStdDev);
+
             // Create standard deviation matrix [x, y, theta]
             var visionStdDevs = new Matrix<>(N3.instance, N1.instance);
             visionStdDevs.set(0, 0, xyStdDev);
@@ -307,6 +350,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                 poseEstimate.timestampSeconds,
                 visionStdDevs
             );
+
+            SmartDashboard.putBoolean("Vision/MeasurementAccepted", true);
+        } else {
+            SmartDashboard.putBoolean("Vision/MeasurementAccepted", false);
         }
     }
 
