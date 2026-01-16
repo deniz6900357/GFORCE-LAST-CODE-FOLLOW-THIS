@@ -91,10 +91,10 @@ public class RobotContainer {
      * These commands can be referenced by name in the PathPlanner GUI.
      */
     private void registerNamedCommands() {
-        // Register ApproachToTag command for autonomous use
-        // Usage: Add "ApproachToTag" event marker in PathPlanner
+        // Register AimToHub command for autonomous use
+        // Usage: Add "AimToHub" event marker in PathPlanner
         // Note: In autonomous, there's no joystick input so robot will only auto-aim without moving
-        NamedCommands.registerCommand("ApproachToTag", new AimToHubCommand(
+        NamedCommands.registerCommand("AimToHub", new AimToHubCommand(
             drivetrain,
             () -> 0.0,        // No forward movement in auto
             () -> 0.0,        // No strafe movement in auto

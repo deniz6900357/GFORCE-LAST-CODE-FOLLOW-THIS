@@ -9,6 +9,12 @@
           "data": {
             "pathName": "New New New New Path"
           }
+        },
+        {
+          "type": "named",
+          "data": {
+            "name": "AimToHub"
+          }
         }
       ]
     }
