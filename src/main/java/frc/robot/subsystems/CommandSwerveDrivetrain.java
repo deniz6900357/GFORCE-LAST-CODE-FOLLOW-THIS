@@ -46,7 +46,7 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     /* Blue alliance: 0 degrees (forward is toward red wall) */
     /* Red alliance: 180 degrees (forward is toward blue wall - flipped perspective) */
     private static final Rotation2d kBlueAlliancePerspectiveRotation = Rotation2d.kZero;
-    private static final Rotation2d kRedAlliancePerspectiveRotation = Rotation2d.k180deg;
+    private static final Rotation2d kRedAlliancePerspectiveRotation = Rotation2d.kZero;
     /* Keep track if we've ever applied the operator perspective before or not */
     private boolean m_hasAppliedOperatorPerspective = false;
 
@@ -271,14 +271,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
         SmartDashboard.putString("Vision/CurrentAlliance", currentAlliance.toString());
 
-        LimelightHelpers.PoseEstimate poseEstimate;
-        if (currentAlliance == Alliance.Blue) {
-            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2("limelight");
-            SmartDashboard.putString("Vision/UsingPoseMethod", "wpiBlue_MegaTag2");
-        } else {
-            poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed_MegaTag2("limelight");
-            SmartDashboard.putString("Vision/UsingPoseMethod", "wpiRed_MegaTag2");
-        }
+        // Always use wpiBlue coordinate system for pose estimation
+        LimelightHelpers.PoseEstimate poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2("limelight");
+        SmartDashboard.putString("Vision/UsingPoseMethod", "wpiBlue_MegaTag2");
+        SmartDashboard.putString("Vision/CoordinateSystem", "Always wpiBlue (Red alliance uses blue coords)");
 
         // Debug: Show vision data availability
         SmartDashboard.putBoolean("Vision/HasValidData", poseEstimate != null && poseEstimate.tagCount > 0);
