@@ -232,6 +232,11 @@ public class AimToHubCommand extends ConditionalCommand {
                         ? BLUE_HUB_CENTER
                         : RED_HUB_CENTER;
 
+                    // Debug: Show hub center being used
+                    SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
+                    SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
+                    SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
+
                     // Calculate angle from robot to hub center
                     Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
                     double distanceToHub = robotToHub.getNorm();

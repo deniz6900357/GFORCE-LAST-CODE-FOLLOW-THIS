@@ -51,6 +51,9 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.cancel();
     }
+
+    // Set initial pose based on alliance (alliance info is available now)
+    m_robotContainer.setInitialPoseForAlliance();
   }
 
   @Override

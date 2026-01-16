@@ -43,10 +43,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     private Notifier m_simNotifier = null;
     private double m_lastSimTime;
 
-    /* Both alliances use the same forward direction (0 degrees toward red alliance wall) */
-    /* This ensures driver controls work the same regardless of alliance color */
+    /* Blue alliance: 0 degrees (forward is toward red wall) */
+    /* Red alliance: 180 degrees (forward is toward blue wall - flipped perspective) */
     private static final Rotation2d kBlueAlliancePerspectiveRotation = Rotation2d.kZero;
-    private static final Rotation2d kRedAlliancePerspectiveRotation = Rotation2d.kZero;
+    private static final Rotation2d kRedAlliancePerspectiveRotation = Rotation2d.k180deg;
     /* Keep track if we've ever applied the operator perspective before or not */
     private boolean m_hasAppliedOperatorPerspective = false;
 
@@ -250,6 +250,7 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
         // Update pose estimation with MegaTag2 vision measurements
         updateVisionMeasurements();
+        SmartDashboard.putBoolean("Vision/Enabled", true);
 
         // Debug: Log gyro yaw to SmartDashboard for troubleshooting
         SmartDashboard.putNumber("Drivetrain/Gyro Yaw (degrees)", getState().Pose.getRotation().getDegrees());
@@ -267,11 +268,16 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
         // Get MegaTag2 pose estimate from Limelight based on alliance
         // MegaTag2 uses multiple tags for more accurate pose estimation
+        Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
+        SmartDashboard.putString("Vision/CurrentAlliance", currentAlliance.toString());
+
         LimelightHelpers.PoseEstimate poseEstimate;
-        if (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue) {
+        if (currentAlliance == Alliance.Blue) {
             poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2("limelight");
+            SmartDashboard.putString("Vision/UsingPoseMethod", "wpiBlue_MegaTag2");
         } else {
             poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiRed_MegaTag2("limelight");
+            SmartDashboard.putString("Vision/UsingPoseMethod", "wpiRed_MegaTag2");
         }
 
         // Debug: Show vision data availability
@@ -299,39 +305,30 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
             SmartDashboard.putNumber("Vision/PoseDifference (m)", poseDifference);
             SmartDashboard.putNumber("Vision/RotationDifference (deg)", rotationDifference);
 
-            // Reject vision measurements that are too far from odometry (likely bad data)
-            // This prevents sudden jumps in pose estimation
-            final double MAX_POSE_DIFFERENCE_METERS = 0.5; // 50cm max jump
-            final double MAX_ROTATION_DIFFERENCE_DEGREES = 30.0; // 30 degree max jump
-
-            if (poseDifference > MAX_POSE_DIFFERENCE_METERS || rotationDifference > MAX_ROTATION_DIFFERENCE_DEGREES) {
-                SmartDashboard.putBoolean("Vision/MeasurementRejected", true);
-                SmartDashboard.putString("Vision/RejectReason",
-                    poseDifference > MAX_POSE_DIFFERENCE_METERS
-                        ? "Position jump too large"
-                        : "Rotation jump too large");
-                return; // Don't use this vision measurement
-            }
+            // No rejection limits - accept all vision measurements for experimentation
             SmartDashboard.putBoolean("Vision/MeasurementRejected", false);
 
             // Calculate vision measurement standard deviation based on factors:
             // - Distance to tags (farther = less accurate)
             // - Number of tags (more tags = more accurate)
-            // - Tag area (smaller = less accurate/farther away)
+            // Lower std dev = more trust in vision (stronger correction)
+            // Higher std dev = less trust in vision (weaker correction)
 
-            double xyStdDev = 0.5; // Base standard deviation in meters
-            double thetaStdDev = 6.0; // Base standard deviation in degrees
+            // AGGRESSIVE vision trust - vision is primary source of position
+            // Lower std dev = MORE trust in vision (stronger correction)
+            double xyStdDev = 0.1; // Very low = MAXIMUM trust in vision position
+            double thetaStdDev = 2.0; // Low = High trust in vision rotation
 
-            // Increase std dev based on distance to tags
+            // Slightly increase std dev at long distances
             double avgTagDistance = poseEstimate.avgTagDist;
             if (avgTagDistance > 4.0) {
-                xyStdDev *= 2.0; // Double uncertainty beyond 4 meters
-                thetaStdDev *= 2.0;
+                xyStdDev *= 1.5; // Still trust vision, but slightly less
+                thetaStdDev *= 1.5;
             }
 
-            // Decrease std dev if we see multiple tags (more confident)
+            // Multiple tags = even more trust
             if (poseEstimate.tagCount >= 2) {
-                xyStdDev *= 0.5;
+                xyStdDev *= 0.5; // MAXIMUM trust with multiple tags
                 thetaStdDev *= 0.5;
             }
 

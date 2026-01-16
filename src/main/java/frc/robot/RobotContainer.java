@@ -63,6 +63,27 @@ public class RobotContainer {
 
         // Put the auto chooser on the dashboard
         SmartDashboard.putData("Auto Chooser", autoChooser);
+
+        // Note: Initial pose will be set in teleopInit() when alliance is available
+    }
+
+    /**
+     * Sets the initial pose based on alliance. Call this in teleopInit() or autonomousInit().
+     */
+    public void setInitialPoseForAlliance() {
+        // Set initial pose based on alliance for AdvantageScope visualization
+        // Blue: Near blue hub (X: 4.6m, Y: 2.35m)
+        // Red: Near red hub (X: 11.9m, Y: 2.35m)
+        var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance().orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
+        Pose2d startPose;
+        if (alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
+            startPose = new Pose2d(4.6, 2.35, Rotation2d.kZero);
+            System.out.println("Blue Alliance - Robot initialized at position: " + startPose);
+        } else {
+            startPose = new Pose2d(11.9, 2.35, Rotation2d.kZero);
+            System.out.println("Red Alliance - Robot initialized at position: " + startPose);
+        }
+        drivetrain.resetPose(startPose);
     }
 
     /**
