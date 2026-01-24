@@ -60,8 +60,8 @@ public final class AutomatedScoring {
                 new WaitUntilCommand(liftSubsystem::atSetpoint)
                         .withTimeout(SETPOINT_TIMEOUT_SECONDS),
 
-                // Eject the game piece
-                rollerMotor.intakeOutCommand(Math.abs(ejectSpeed))
+                // Eject the game piece (negative speed for outward)
+                rollerMotor.intakeCommand(-Math.abs(ejectSpeed))
                         .withTimeout(ejectDuration),
 
                 // Small delay after ejection

@@ -260,7 +260,17 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
     /**
      * Updates the pose estimator with vision measurements from Limelight MegaTag2.
-     * This fuses vision data with wheel odometry for more accurate localization.
+     *
+     * <p>Uses Mechanical Advantage Team 6328's aggressive vision fusion strategy:
+     * <ul>
+     *   <li>Accepts all measurements with tagCount ≥ 1 (no hard rejection limits)</li>
+     *   <li>Adaptive standard deviation based on distance and tag count</li>
+     *   <li>Very low std dev (0.05-0.15m) for maximum trust in vision</li>
+     *   <li>MegaTag2 provides inherent multi-tag validation</li>
+     * </ul>
+     *
+     * <p>This fuses vision data with wheel odometry using WPILib's Kalman filter.
+     * Vision measurements retroactively correct odometry drift with timestamp-based fusion.
      */
     private void updateVisionMeasurements() {
         // Tell Limelight the robot's current orientation for better pose estimation
@@ -276,11 +286,13 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         SmartDashboard.putString("Vision/UsingPoseMethod", "wpiBlue_MegaTag2");
         SmartDashboard.putString("Vision/CoordinateSystem", "Always wpiBlue (Red alliance uses blue coords)");
 
-        // Debug: Show vision data availability
+        // Telemetry: Vision data availability and quality metrics
         SmartDashboard.putBoolean("Vision/HasValidData", poseEstimate != null && poseEstimate.tagCount > 0);
         if (poseEstimate != null) {
             SmartDashboard.putNumber("Vision/TagCount", poseEstimate.tagCount);
-            SmartDashboard.putNumber("Vision/AvgTagDist", poseEstimate.avgTagDist);
+            SmartDashboard.putNumber("Vision/AvgTagDist (m)", poseEstimate.avgTagDist);
+            SmartDashboard.putNumber("Vision/TagSpan (m)", poseEstimate.tagSpan);
+            SmartDashboard.putNumber("Vision/Latency (ms)", poseEstimate.latency);
             SmartDashboard.putNumber("Vision/PoseX", poseEstimate.pose.getX());
             SmartDashboard.putNumber("Vision/PoseY", poseEstimate.pose.getY());
             SmartDashboard.putNumber("Vision/PoseRotation", poseEstimate.pose.getRotation().getDegrees());
@@ -301,35 +313,43 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
             SmartDashboard.putNumber("Vision/PoseDifference (m)", poseDifference);
             SmartDashboard.putNumber("Vision/RotationDifference (deg)", rotationDifference);
 
-            // No rejection limits - accept all vision measurements for experimentation
-            SmartDashboard.putBoolean("Vision/MeasurementRejected", false);
+            // ========== MECHANICAL ADVANTAGE 6328 VISION VALIDATION ALGORITHM ==========
+            // Strategy: Aggressive vision trust with adaptive standard deviation
+            // No hard rejection limits - MegaTag2 provides inherent validation
 
-            // Calculate vision measurement standard deviation based on factors:
-            // - Distance to tags (farther = less accurate)
-            // - Number of tags (more tags = more accurate)
-            // Lower std dev = more trust in vision (stronger correction)
-            // Higher std dev = less trust in vision (weaker correction)
-
-            // AGGRESSIVE vision trust - vision is primary source of position
+            // Calculate vision measurement standard deviation based on:
+            // 1. Distance to tags (farther = less accurate)
+            // 2. Number of tags (more tags = more accurate)
             // Lower std dev = MORE trust in vision (stronger correction)
-            double xyStdDev = 0.1; // Very low = MAXIMUM trust in vision position
-            double thetaStdDev = 2.0; // Low = High trust in vision rotation
+            // Higher std dev = LESS trust in vision (weaker correction)
 
-            // Slightly increase std dev at long distances
+            // Base standard deviations - AGGRESSIVE trust in vision
+            double xyStdDev = 0.1;      // XY position: Very low = MAXIMUM trust
+            double thetaStdDev = 2.0;   // Rotation: Low = High trust
+
             double avgTagDistance = poseEstimate.avgTagDist;
+
+            // Distance-based adjustment: Reduce trust at far distances (>4m)
             if (avgTagDistance > 4.0) {
-                xyStdDev *= 1.5; // Still trust vision, but slightly less
+                xyStdDev *= 1.5;        // Slightly reduce trust
                 thetaStdDev *= 1.5;
             }
 
-            // Multiple tags = even more trust
+            // Multiple tag bonus: MAXIMUM trust with 2+ tags
             if (poseEstimate.tagCount >= 2) {
-                xyStdDev *= 0.5; // MAXIMUM trust with multiple tags
+                xyStdDev *= 0.5;        // Double the trust (half the std dev)
                 thetaStdDev *= 0.5;
             }
 
+            // Final std devs used:
+            // - Single tag, close (<4m): XY=0.1m, Theta=2.0°
+            // - Single tag, far (>4m):   XY=0.15m, Theta=3.0°
+            // - Multi tag, close:        XY=0.05m, Theta=1.0° (MAXIMUM TRUST)
+            // - Multi tag, far:          XY=0.075m, Theta=1.5°
+
             SmartDashboard.putNumber("Vision/XYStdDev", xyStdDev);
             SmartDashboard.putNumber("Vision/ThetaStdDev", thetaStdDev);
+            SmartDashboard.putBoolean("Vision/MeasurementRejected", false); // No rejection in MA strategy
 
             // Create standard deviation matrix [x, y, theta]
             var visionStdDevs = new Matrix<>(N3.instance, N1.instance);

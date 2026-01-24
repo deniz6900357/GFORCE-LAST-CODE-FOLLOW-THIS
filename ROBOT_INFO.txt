@@ -82,6 +82,62 @@ Motor Konfigürasyonu:
   - Slip Current:      120 Amps
 
 
+SHOOTER SİSTEMİ (Shooter System):
+--------------------------------------------------------------------------------
+Mimari:                Mechanical Advantage Team 6328 Architecture
+                       (Separate Flywheel + Hood subsystems)
+
+Flywheel Motor:
+  - Motor:             Kraken X60 (TalonFX)
+  - CAN ID:            20
+  - Bus:               CANivore
+  - Control:           Bang-Bang Velocity Control
+    • Duty Cycle Mode: Hızlı hızlanma
+    • Torque Current:  Hassas tutma (near setpoint)
+  - Current Limit:     80 Amps
+  - Neutral Mode:      Coast
+
+Hood Motor:
+  - Motor:             Kraken X44 (TalonFX)
+  - CAN ID:            22
+  - Bus:               CANivore
+  - Control:           Motion Magic (Position)
+  - Gear Ratio:        50:1
+  - Angle Range:       19° - 51° (0.33 - 0.89 rad)
+  - Current Limit:     40 Amps
+  - Neutral Mode:      Brake
+  - Zeroing:           Required on first boot (POV Right)
+
+Shot Calculator:
+  - Type:              Distance-based interpolation
+  - Method:            InterpolatingTreeMap
+  - Alliance Aware:    Yes (Blue/Red speaker positions)
+  - Distance Range:    1.34m - 5.60m
+
+
+FEEDER SİSTEMİ (Feeder System):
+--------------------------------------------------------------------------------
+Motor:                 NEO (SparkMax)
+CAN ID:                30
+Bus:                   RoboRIO CAN
+Gear Ratio:            27:1
+Control:               Percent Output (Simple)
+Speed:                 80% (0.8)
+Current Limit:         40 Amps
+Neutral Mode:          Brake
+
+
+INTAKE SİSTEMİ (Intake System):
+--------------------------------------------------------------------------------
+Motor:                 Kraken X60 (TalonFX)
+CAN ID:                18
+Bus:                   CANivore
+Control:               Percent Output (Simple)
+Speed:                 70% (0.7)
+Current Limit:         60 Amps
+Neutral Mode:          Coast
+
+
 ENCODER & SENSÖRLER (Encoders & Sensors):
 --------------------------------------------------------------------------------
 Steer Encoders:        CANcoder (4 adet - FusedCANcoder feedback)
@@ -195,7 +251,7 @@ SÜRÜCÜ KONTROLLERI (Driver Controls)
 ================================================================================
 
 Controller:            Xbox Controller (Port 0)
-Deadband:              10% (hem hız hem rotasyon için)
+Deadband:              5% (hem hız hem rotasyon için)
 
 Sürüş Kontrolleri:
   - Left Stick Y:      İleri/Geri (Field-Centric X)
@@ -203,10 +259,32 @@ Sürüş Kontrolleri:
   - Right Stick X:     Dönüş (saat yönü tersi)
 
 Buton Atamaları:
-  - A Button:          AprilTag'e yaklaşma (while held)
-  - B Button:          Tekerlekleri yönlendirme modu
-  - Left Bumper:       Field-centric reset (alliance-aware)
-  - Right Bumper:      Fren modu (X formation)
+  - A Button:          Hub'a Dön + Shooter Hazırla (whileTrue)
+                       • Robot hub'a döner (AimToHubCommand)
+                       • Hood açısı + Flywheel hızı ayarlanır
+                       • ShotCalculator ile mesafe bazlı otomatik ayar
+                       • SmartDashboard: "Flywheel/At Goal", "Hood/At Goal"
+                       • NOT: Feeder MANUEL (RT ile)
+
+  - B Button:          Tekerlekleri yönlendirme modu (Point Wheels)
+
+  - RT (Right Trigger): Feeder (whileTrue)
+                       • Basılı tut = Feeder çalışır (%80)
+                       • Bırak = Feeder durur
+                       • Top shooter'a beslenir
+
+  - LT (Left Trigger):  Intake Motor (whileTrue)
+                       • Basılı tut = Intake motor çalışır (%70)
+                       • Bırak = Motor durur
+                       • Kraken X60 motor (CANivore)
+
+  - Left Bumper:       Field-centric reset (alliance-aware, gyro 0°)
+
+  - Right Bumper:      Fren modu (X formation, brake wheels)
+
+  - POV Right (D-Pad): Hood Zero/Calibration
+                       • İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
+                       • Hood encoder'ı sıfırlar
 
 
 SİMÜLASYON PARAMETRELERİ (Simulation Parameters)
@@ -236,7 +314,9 @@ Hoot Logging:          "./logs/example.hoot"
 NAMED COMMANDS (Otonom için)
 ================================================================================
 Kayıtlı Komutlar:
-  - "ApproachToTag":   Limelight ile AprilTag'e yaklaşma
+  - "AimToHub":        Hub'a dönme komutu (autonomous kullanımı için)
+                       • finishWhenAtTarget=true (otonom modda)
+                       • 3° tolerans, 5 döngü süre
 
 
 PROJE YAPISI (Project Structure)
@@ -246,10 +326,29 @@ Ana Sınıflar:
   - frc.robot.Robot                      : Ana robot sınıfı
   - frc.robot.RobotContainer             : Subsystem & command container
   - frc.robot.subsystems.CommandSwerveDrivetrain
-  - frc.robot.commands.ApproachToTagCommand
+  - frc.robot.commands.AimToHubCommand   : Hub'a dönme komutu
   - frc.robot.generated.TunerConstants   : CTRE Tuner X generated
   - frc.robot.LimelightHelpers           : Limelight utility library
   - frc.robot.Telemetry                  : Telemetry handler
+
+Shooter Subsystems (MA Architecture):
+  - frc.robot.subsystems.shooter.Shooter         : Utility class (factory methods)
+  - frc.robot.subsystems.shooter.flywheel.Flywheel
+  - frc.robot.subsystems.shooter.flywheel.FlywheelIO
+  - frc.robot.subsystems.shooter.flywheel.FlywheelIOReal
+  - frc.robot.subsystems.shooter.hood.Hood
+  - frc.robot.subsystems.shooter.hood.HoodIO
+  - frc.robot.subsystems.shooter.hood.HoodIOReal
+  - frc.robot.subsystems.shooter.ShotCalculator  : Distance-based shot calculator
+  - frc.robot.subsystems.shooter.ShooterConstants
+
+Feeder Subsystem:
+  - frc.robot.subsystems.feeder.Feeder
+  - frc.robot.subsystems.feeder.FeederIO
+  - frc.robot.subsystems.feeder.FeederIOReal
+
+Intake Subsystem:
+  - frc.robot.subsystems.intake.IntakeMotor      : Kraken X60 motor control
 
 Konfigürasyon Dosyaları:
   - build.gradle                         : Gradle build config
@@ -298,6 +397,10 @@ Maç Öncesi Kontroller:
   [ ] Battery voltage > 12.0V
   [ ] Controller pairing
   [ ] Alliance station seçimi
+  [ ] Hood ZERO yapıldı mı? (POV Right - İLK ÇALIŞTIRMADA MUTLAKA!)
+  [ ] Shooter motor bağlantıları (ID 20, 22 CANivore)
+  [ ] Feeder motor bağlantısı (ID 30 RoboRIO CAN)
+  [ ] Intake motor bağlantısı (ID 18 CANivore)
 
 Yazılım Güncellemeleri:
   [ ] Robot code deploy
@@ -315,7 +418,32 @@ PathPlanner Docs:      https://pathplanner.dev
 Limelight Docs:        https://docs.limelightvision.io
 
 
+MOTOR ID ÖZET TABLOSU
 ================================================================================
-                           Son Güncelleme: 2026-01-11
+
+CANivore Bus:
+  ID 2:   Pigeon 2 IMU
+  ID 4:   FL Drive Motor (Swerve)
+  ID 5:   FL Steer Motor (Swerve)
+  ID 6:   FL CANcoder (Swerve)
+  ID 7:   FR Drive Motor (Swerve)
+  ID 8:   FR Steer Motor (Swerve)
+  ID 9:   FR CANcoder (Swerve)
+  ID 10:  BL Drive Motor (Swerve)
+  ID 11:  BL Steer Motor (Swerve)
+  ID 12:  BL CANcoder (Swerve)
+  ID 13:  BR Drive Motor (Swerve)
+  ID 14:  BR Steer Motor (Swerve)
+  ID 15:  BR CANcoder (Swerve)
+  ID 18:  Intake Motor (Kraken X60)
+  ID 20:  Flywheel Motor (Kraken X60)
+  ID 22:  Hood Motor (Kraken X44)
+
+RoboRIO CAN Bus:
+  ID 30:  Feeder Motor (NEO)
+
+
+================================================================================
+                           Son Güncelleme: 2026-01-24
                     Bu dosya robot kodundan otomatik oluşturuldu
 ================================================================================

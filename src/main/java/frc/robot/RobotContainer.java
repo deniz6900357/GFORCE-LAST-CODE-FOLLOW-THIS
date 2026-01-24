@@ -20,13 +20,17 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 
-import frc.robot.RobotConstants.IntakeConstants;
 import frc.robot.commands.AimToHubCommand;
 import frc.robot.generated.TunerConstants;
-import frc.robot.automation.AutomatedScoring;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.intake.IntakeMotor;
-import frc.robot.subsystems.intake.IntakeSubsystem;
+import frc.robot.subsystems.shooter.Shooter;
+import frc.robot.subsystems.shooter.flywheel.Flywheel;
+import frc.robot.subsystems.shooter.flywheel.FlywheelIOReal;
+import frc.robot.subsystems.shooter.hood.Hood;
+import frc.robot.subsystems.shooter.hood.HoodIOReal;
+import frc.robot.subsystems.feeder.Feeder;
+import frc.robot.subsystems.feeder.FeederIOReal;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -45,8 +49,16 @@ public class RobotContainer {
     private final CommandXboxController joystick = new CommandXboxController(0);
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
-    private final IntakeSubsystem intake = new IntakeSubsystem();
+
+    // Intake subsystem (single Kraken X60 motor on CANivore)
     private final IntakeMotor intakeMotor = new IntakeMotor();
+
+    // Shooter subsystems (MA architecture - separate subsystems)
+    private final Flywheel flywheel = new Flywheel(new FlywheelIOReal());
+    private final Hood hood = new Hood(new HoodIOReal());
+
+    // Feeder subsystem (NEO motor with 27:1 reduction)
+    private final Feeder feeder = new Feeder(new FeederIOReal());
 
     // Auto chooser for selecting autonomous routines
     private final SendableChooser<Command> autoChooser;
@@ -137,50 +149,32 @@ public class RobotContainer {
         // brake on right bumper
         joystick.rightBumper().whileTrue(drivetrain.applyRequest(() -> brake));
 
-        // Approach AprilTag with Limelight - hold A button
-        // Robot will automatically aim at AprilTag while driver retains movement control
-        joystick.a().whileTrue(new AimToHubCommand(
-            drivetrain,
-            joystick::getLeftY,   // Forward/backward control
-            joystick::getLeftX,   // Strafe left/right control
-            MaxSpeed,             // Max translational speed
-            MaxAngularRate        // Max rotational speed
-        ));
+        // A button: Hub'a dön + Shooter hazırla (feeder YOK - manuel RT ile kontrol edilir)
+        // Shooter hazır olduğunda SmartDashboard'da "Flywheel/At Goal" ve "Hood/At Goal" true olur
+        joystick.a().whileTrue(
+            Commands.parallel(
+                // Hub'a dön (sürücü kontrolü korunur)
+                new AimToHubCommand(
+                    drivetrain,
+                    joystick::getLeftY,
+                    joystick::getLeftX,
+                    MaxSpeed,
+                    MaxAngularRate
+                ),
 
-        // HOME pozisyonuna git
-        joystick.povLeft().onTrue(intake.goToSetpointCommand(IntakeConstants.HeightSetpoints.HOME));
+                // Shooter'ı hazırla (hood açısı + flywheel hızı)
+                Shooter.runCalculatedShotCommand(flywheel, hood, () -> drivetrain.getState().Pose)
+            ).withName("Aim and Prepare Shooter")
+        );
 
-        // Test: POV Up - 1 tur aşağı, POV Down - 1 tur yukarı
-        joystick.povUp().onTrue(intake.moveRelativeCommand(-1));   // -1 tur (aşağı)
-        joystick.povDown().onTrue(intake.moveRelativeCommand(1));  // +1 tur (yukarı)
+        // Hood zero etme (POV sağ) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
+        joystick.povRight().onTrue(hood.zeroCommand());
 
-        // R2: basılı tut - intake pozisyonuna iner, roller içeri çalışır; bırak - roller durur, intake HOME
-        joystick.rightTrigger().whileTrue(
-            Commands.startEnd(
-                () -> {
-                    intake.goToSetpoint(IntakeConstants.HeightSetpoints.INTAKE_POSITION);
-                    intakeMotor.setSpeed(0.7);
-                },
-                () -> {
-                    intakeMotor.stop();
-                    intake.goToSetpoint(IntakeConstants.HeightSetpoints.HOME);
-                },
-                intake,
-                intakeMotor));
+        // RT (sağ trigger): Feeder - basılı tut, feeder çalışır; bırak, feeder durur
+        joystick.rightTrigger().whileTrue(feeder.feedCommand());
 
-        // L2: basılı tut - intake pozisyonuna iner, roller dışarı çalışır; bırak - roller durur, intake HOME
-        joystick.leftTrigger().whileTrue(
-            Commands.startEnd(
-                () -> {
-                    intake.goToSetpoint(IntakeConstants.HeightSetpoints.INTAKE_POSITION);
-                    intakeMotor.setSpeed(-0.7); // Negatif = dışarı
-                },
-                () -> {
-                    intakeMotor.stop();
-                    intake.goToSetpoint(IntakeConstants.HeightSetpoints.HOME);
-                },
-                intake,
-                intakeMotor));
+        // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor durur
+        joystick.leftTrigger().whileTrue(intakeMotor.intakeCommand());
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
