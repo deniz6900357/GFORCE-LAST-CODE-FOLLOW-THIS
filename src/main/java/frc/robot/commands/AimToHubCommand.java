@@ -14,25 +14,27 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.ConditionalCommand;
-import edu.wpi.first.wpilibj2.command.FunctionalCommand;
+import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.DoubleSupplier;
 
 /**
  * Command to aim robot rotation at nearest Hub face using pose estimation.
  *
- * The robot uses its odometry (fused with vision measurements from Limelight)
+ * <p>The robot uses its odometry (fused with vision measurements from Limelight)
  * to determine its field position, then calculates the angle to the nearest
  * Hub face belonging to its alliance. Uses proportional control to automatically
  * aim at the Hub while the driver retains full translational control (forward/strafe).
  *
- * Alliance-aware: Blue alliance aims at Blue Hub (tags 17-28),
+ * <p>Alliance-aware: Blue alliance aims at Blue Hub (tags 17-28),
  *                 Red alliance aims at Red Hub (tags 1-12)
  */
-public class AimToHubCommand extends ConditionalCommand {
+public class AimToHubCommand extends Command {
+
+    // ========== Control Constants ==========
 
     // Proportional control constant for pose-based aiming
     private static final double KP_POSE = 0.06;
@@ -44,8 +46,28 @@ public class AimToHubCommand extends ConditionalCommand {
     // Threshold in degrees - don't apply min_command if error is smaller than this
     private static final double ERROR_THRESHOLD = 1.0;
 
+    // Tolerance in degrees - command finishes when within this tolerance for autonomous
+    private static final double FINISH_TOLERANCE_DEGREES = 3.0;
+
+    // Number of consecutive loops robot must be within tolerance before finishing
+    private static final int TOLERANCE_LOOP_COUNT = 5;
+
     // Joystick deadband - same as normal drive (10%)
     private static final double DEADBAND = 0.1;
+
+    // ========== Subsystems and Inputs ==========
+
+    private final CommandSwerveDrivetrain drivetrain;
+    private final DoubleSupplier leftYSupplier;
+    private final DoubleSupplier leftXSupplier;
+    private final double maxSpeed;
+    private final double maxAngularRate;
+    private final boolean finishWhenAtTarget;
+
+    // ========== State Tracking ==========
+
+    // Counter to track how many loops we've been within tolerance
+    private int withinToleranceCount = 0;
 
     /**
      * Represents a Hub face position with its pose and associated AprilTag IDs for each alliance.
@@ -80,6 +102,7 @@ public class AimToHubCommand extends ConditionalCommand {
      */
     private static final Translation2d BLUE_HUB_CENTER = new Translation2d(4.552, 4.021);
     private static final Translation2d RED_HUB_CENTER = new Translation2d(11.961, 4.021);
+
     public static List<HubFace> hubFaces = Arrays.asList(
             // BLUE HUB (Tag 17-28) - Sol taraf, resmi açılarla
             // Tag 17: 0° (alt yüz)
@@ -187,7 +210,7 @@ public class AimToHubCommand extends ConditionalCommand {
     }
 
     /**
-     * Creates a new AimToHubCommand.
+     * Creates a new AimToHubCommand for teleop (runs until interrupted).
      *
      * @param drivetrain The swerve drivetrain subsystem
      * @param leftYSupplier Supplier for left joystick Y (forward/backward)
@@ -197,128 +220,147 @@ public class AimToHubCommand extends ConditionalCommand {
      */
     public AimToHubCommand(
         CommandSwerveDrivetrain drivetrain,
-        java.util.function.DoubleSupplier leftYSupplier,
-        java.util.function.DoubleSupplier leftXSupplier,
+        DoubleSupplier leftYSupplier,
+        DoubleSupplier leftXSupplier,
         double maxSpeed,
         double maxAngularRate
     ) {
-        super(
-            // Always run - use pose estimation to aim at nearest Hub
-            new FunctionalCommand(
-                // Initialize
-                () -> {
-                    SmartDashboard.putBoolean("AimToHub/Running", true);
-                    System.out.println("AimToHubCommand started - Robot will aim at Hub!");
-                },
-                // Execute - continuously adjust rotation to aim at Hub
-                () -> {
-                    // Get joystick inputs for driver control with deadband
-                    double leftY = leftYSupplier.getAsDouble();
-                    double leftX = leftXSupplier.getAsDouble();
+        this(drivetrain, leftYSupplier, leftXSupplier, maxSpeed, maxAngularRate, false);
+    }
 
-                    // Apply deadband (10%)
-                    if (Math.abs(leftY) < DEADBAND) leftY = 0.0;
-                    if (Math.abs(leftX) < DEADBAND) leftX = 0.0;
+    /**
+     * Creates a new AimToHubCommand.
+     *
+     * @param drivetrain The swerve drivetrain subsystem
+     * @param leftYSupplier Supplier for left joystick Y (forward/backward)
+     * @param leftXSupplier Supplier for left joystick X (left/right strafe)
+     * @param maxSpeed Maximum translational speed
+     * @param maxAngularRate Maximum rotational speed
+     * @param finishWhenAtTarget If true, command ends when aligned (for autonomous). If false, runs until interrupted (for teleop)
+     */
+    public AimToHubCommand(
+        CommandSwerveDrivetrain drivetrain,
+        DoubleSupplier leftYSupplier,
+        DoubleSupplier leftXSupplier,
+        double maxSpeed,
+        double maxAngularRate,
+        boolean finishWhenAtTarget
+    ) {
+        this.drivetrain = drivetrain;
+        this.leftYSupplier = leftYSupplier;
+        this.leftXSupplier = leftXSupplier;
+        this.maxSpeed = maxSpeed;
+        this.maxAngularRate = maxAngularRate;
+        this.finishWhenAtTarget = finishWhenAtTarget;
 
-                    double forwardSpeed = -leftY * maxSpeed;  // Negative for correct direction
-                    double strafeSpeed = -leftX * maxSpeed;   // Negative for correct direction
+        addRequirements(drivetrain);
+    }
 
-                    // Get robot pose from drivetrain odometry (fused with vision)
-                    Pose2d robotPose = drivetrain.getState().Pose;
+    @Override
+    public void initialize() {
+        withinToleranceCount = 0;
+        SmartDashboard.putBoolean("AimToHub/Running", true);
+        System.out.println("AimToHubCommand started - Robot will aim at Hub!");
+    }
 
-                    // Get current alliance and select hub center
-                    Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
-                    Translation2d hubCenter = (currentAlliance == Alliance.Blue)
-                        ? BLUE_HUB_CENTER
-                        : RED_HUB_CENTER;
+    @Override
+    public void execute() {
+        // Get joystick inputs for driver control with deadband
+        double leftY = leftYSupplier.getAsDouble();
+        double leftX = leftXSupplier.getAsDouble();
 
-                    // Debug: Show hub center being used
-                    SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
-                    SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
-                    SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
+        // Apply deadband (10%)
+        if (Math.abs(leftY) < DEADBAND) leftY = 0.0;
+        if (Math.abs(leftX) < DEADBAND) leftX = 0.0;
 
-                    // Calculate angle from robot to hub center
-                    Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
-                    double distanceToHub = robotToHub.getNorm();
-                    Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
+        double forwardSpeed = -leftY * maxSpeed;  // Negative for correct direction
+        double strafeSpeed = -leftX * maxSpeed;   // Negative for correct direction
 
-                    // Calculate rotation error (how much robot needs to turn)
-                    double rotationError = getModuloRotation(
-                        angleToHub.getDegrees() - robotPose.getRotation().getDegrees()
-                    );
+        // Get robot pose from drivetrain odometry (fused with vision)
+        Pose2d robotPose = drivetrain.getState().Pose;
 
-                    double steeringAdjust = 0.0;
+        // Get current alliance and select hub center
+        Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
+        Translation2d hubCenter = (currentAlliance == Alliance.Blue)
+            ? BLUE_HUB_CENTER
+            : RED_HUB_CENTER;
 
-                    // Apply proportional control
-                    if (Math.abs(rotationError) > ERROR_THRESHOLD) {
-                        steeringAdjust = KP_POSE * rotationError;
+        // Debug: Show hub center being used
+        SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
+        SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
+        SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
 
-                        // Add minimum command to overcome friction
-                        if (rotationError < 0) {
-                            steeringAdjust -= MIN_COMMAND;
-                        } else {
-                            steeringAdjust += MIN_COMMAND;
-                        }
-                    } else {
-                        steeringAdjust = KP_POSE * rotationError;
-                    }
+        // Calculate angle from robot to hub center
+        Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
+        double distanceToHub = robotToHub.getNorm();
+        Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
 
-                    // Clamp steering to max angular rate
-                    steeringAdjust = Math.max(-maxAngularRate, Math.min(maxAngularRate, steeringAdjust));
-
-                    // Debug output
-                    SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
-                    SmartDashboard.putNumber("AimToHub/TargetAngle", angleToHub.getDegrees());
-                    SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
-                    SmartDashboard.putNumber("AimToHub/SteeringAdjust", steeringAdjust);
-                    SmartDashboard.putNumber("AimToHub/DistanceToHub", distanceToHub);
-                    SmartDashboard.putString("AimToHub/TargetHub", currentAlliance == Alliance.Blue ? "Blue Hub" : "Red Hub");
-
-                    SmartDashboard.putNumber("AimToHub/ForwardSpeed", forwardSpeed);
-                    SmartDashboard.putNumber("AimToHub/StrafeSpeed", strafeSpeed);
-
-                    // Apply field-centric drive with automatic rotation adjustment
-                    drivetrain.setControl(
-                        new SwerveRequest.FieldCentric()
-                            .withVelocityX(forwardSpeed)
-                            .withVelocityY(strafeSpeed)
-                            .withRotationalRate(steeringAdjust)
-                            .withDriveRequestType(DriveRequestType.Velocity)
-                    );
-                },
-                // End - stop the drivetrain
-                (interrupted) -> {
-                    drivetrain.setControl(new SwerveRequest.Idle());
-                    SmartDashboard.putBoolean("AimToHub/Running", false);
-                    System.out.println("AimToHubCommand ended! Interrupted: " + interrupted);
-                },
-                // IsFinished - never finish automatically
-                // Command will run as long as the button is held
-                () -> false,
-                drivetrain
-            ),
-            // Fallback if pose estimation fails - just pass through joystick
-            new FunctionalCommand(
-                () -> {},
-                () -> {
-                    double leftY = leftYSupplier.getAsDouble();
-                    double leftX = leftXSupplier.getAsDouble();
-                    if (Math.abs(leftY) < DEADBAND) leftY = 0.0;
-                    if (Math.abs(leftX) < DEADBAND) leftX = 0.0;
-                    drivetrain.setControl(
-                        new SwerveRequest.FieldCentric()
-                            .withVelocityX(-leftY * maxSpeed)  // Negative for correct direction
-                            .withVelocityY(-leftX * maxSpeed)  // Negative for correct direction
-                            .withRotationalRate(0)
-                            .withDriveRequestType(DriveRequestType.Velocity)
-                    );
-                },
-                (interrupted) -> {},
-                () -> false,
-                drivetrain
-            ),
-            // Condition: always try to use pose estimation
-            () -> true
+        // Calculate rotation error (how much robot needs to turn)
+        double rotationError = getModuloRotation(
+            angleToHub.getDegrees() - robotPose.getRotation().getDegrees()
         );
+
+        double steeringAdjust = 0.0;
+
+        // Apply proportional control
+        if (Math.abs(rotationError) > ERROR_THRESHOLD) {
+            steeringAdjust = KP_POSE * rotationError;
+
+            // Add minimum command to overcome friction
+            if (rotationError < 0) {
+                steeringAdjust -= MIN_COMMAND;
+            } else {
+                steeringAdjust += MIN_COMMAND;
+            }
+        } else {
+            steeringAdjust = KP_POSE * rotationError;
+        }
+
+        // Clamp steering to max angular rate
+        steeringAdjust = Math.max(-maxAngularRate, Math.min(maxAngularRate, steeringAdjust));
+
+        // Track tolerance for autonomous finishing
+        if (Math.abs(rotationError) <= FINISH_TOLERANCE_DEGREES) {
+            withinToleranceCount++;
+        } else {
+            withinToleranceCount = 0;
+        }
+
+        // Debug output
+        SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
+        SmartDashboard.putNumber("AimToHub/TargetAngle", angleToHub.getDegrees());
+        SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
+        SmartDashboard.putNumber("AimToHub/SteeringAdjust", steeringAdjust);
+        SmartDashboard.putNumber("AimToHub/DistanceToHub", distanceToHub);
+        SmartDashboard.putString("AimToHub/TargetHub", currentAlliance == Alliance.Blue ? "Blue Hub" : "Red Hub");
+        SmartDashboard.putNumber("AimToHub/ToleranceCount", withinToleranceCount);
+        SmartDashboard.putNumber("AimToHub/ForwardSpeed", forwardSpeed);
+        SmartDashboard.putNumber("AimToHub/StrafeSpeed", strafeSpeed);
+
+        // Apply field-centric drive with automatic rotation adjustment
+        drivetrain.setControl(
+            new SwerveRequest.FieldCentric()
+                .withVelocityX(forwardSpeed)
+                .withVelocityY(strafeSpeed)
+                .withRotationalRate(steeringAdjust)
+                .withDriveRequestType(DriveRequestType.Velocity)
+        );
+    }
+
+    @Override
+    public void end(boolean interrupted) {
+        drivetrain.setControl(new SwerveRequest.Idle());
+        SmartDashboard.putBoolean("AimToHub/Running", false);
+        System.out.println("AimToHubCommand ended! Interrupted: " + interrupted);
+    }
+
+    @Override
+    public boolean isFinished() {
+        // If configured to finish when at target (autonomous mode)
+        if (finishWhenAtTarget) {
+            return withinToleranceCount >= TOLERANCE_LOOP_COUNT;
+        }
+        // Otherwise run until interrupted (teleop mode)
+        return false;
     }
 }

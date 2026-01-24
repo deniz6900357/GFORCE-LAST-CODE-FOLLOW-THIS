@@ -3,25 +3,25 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 6.0,
-        "y": 7.0
+        "x": 3.6258240740740746,
+        "y": 0.6351278211805562
       },
       "prevControl": null,
       "nextControl": {
-        "x": 5.360583627679846,
-        "y": 7.0
+        "x": 2.7935637297453715,
+        "y": 0.6299348958333337
       },
       "isLocked": false,
       "linkedName": null
     },
     {
       "anchor": {
-        "x": 2.6658163339120358,
-        "y": 5.5
+        "x": 0.5,
+        "y": 0.6
       },
       "prevControl": {
-        "x": 1.8095721209490732,
-        "y": 7.403682364004629
+        "x": 1.2559645543981484,
+        "y": 0.6012369068287032
       },
       "nextControl": null,
       "isLocked": false,
@@ -48,7 +48,7 @@
   "folder": "paths",
   "idealStartingState": {
     "velocity": 0,
-    "rotation": 0.0
+    "rotation": 67.1870024087886
   },
   "useDefaultConstraints": true
 }

@@ -5,21 +5,33 @@
     "data": {
       "commands": [
         {
+          "type": "named",
+          "data": {
+            "name": "AimToHub"
+          }
+        },
+        {
           "type": "path",
           "data": {
-            "pathName": "Copy of New Path"
+            "pathName": "1. path"
+          }
+        },
+        {
+          "type": "wait",
+          "data": {
+            "waitTime": 1.0
+          }
+        },
+        {
+          "type": "path",
+          "data": {
+            "pathName": "2. path"
           }
         },
         {
           "type": "named",
           "data": {
-            "name": "ApproachToTag"
-          }
-        },
-        {
-          "type": "path",
-          "data": {
-            "pathName": "New Path"
+            "name": "AimToHub"
           }
         },
         {
@@ -31,19 +43,25 @@
         {
           "type": "path",
           "data": {
-            "pathName": "Copy of New Path"
-          }
-        },
-        {
-          "type": "named",
-          "data": {
-            "name": "ApproachToTag"
+            "pathName": "2.5 . path"
           }
         },
         {
           "type": "path",
           "data": {
-            "pathName": "New New Path"
+            "pathName": "3. path"
+          }
+        },
+        {
+          "type": "path",
+          "data": {
+            "pathName": "4. path"
+          }
+        },
+        {
+          "type": "named",
+          "data": {
+            "name": "AimToHub"
           }
         },
         {
@@ -55,13 +73,7 @@
         {
           "type": "path",
           "data": {
-            "pathName": "New New New Path"
-          }
-        },
-        {
-          "type": "named",
-          "data": {
-            "name": "ApproachToTag"
+            "pathName": "5. path"
           }
         }
       ]

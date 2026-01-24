@@ -72,16 +72,16 @@ public class RobotContainer {
      */
     public void setInitialPoseForAlliance() {
         // Set initial pose based on alliance for AdvantageScope visualization
-        // Blue: Near blue hub (X: 4.6m, Y: 2.35m)
-        // Red: Near red hub (X: 11.9m, Y: 2.35m)
+        // Blue: Near blue hub (X: 4.6m, Y: 2.35m), facing forward (0°)
+        // Red: Near red hub (X: 11.9m, Y: 2.35m), facing blue wall (180°)
         var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance().orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
         Pose2d startPose;
         if (alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
             startPose = new Pose2d(4.6, 2.35, Rotation2d.kZero);
             System.out.println("Blue Alliance - Robot initialized at position: " + startPose);
         } else {
-            startPose = new Pose2d(11.9, 2.35, Rotation2d.kZero);
-            System.out.println("Red Alliance - Robot initialized at position: " + startPose);
+            startPose = new Pose2d(11.9, 2.35, Rotation2d.fromDegrees(180));
+            System.out.println("Red Alliance - Robot initialized at position (facing blue wall): " + startPose);
         }
         drivetrain.resetPose(startPose);
     }
@@ -93,13 +93,14 @@ public class RobotContainer {
     private void registerNamedCommands() {
         // Register AimToHub command for autonomous use
         // Usage: Add "AimToHub" event marker in PathPlanner
-        // Note: In autonomous, there's no joystick input so robot will only auto-aim without moving
+        // Command will finish automatically when aligned with hub (within 3° tolerance for 5 loops)
         NamedCommands.registerCommand("AimToHub", new AimToHubCommand(
             drivetrain,
             () -> 0.0,        // No forward movement in auto
             () -> 0.0,        // No strafe movement in auto
             MaxSpeed,
-            MaxAngularRate
+            MaxAngularRate,
+            true              // finishWhenAtTarget = true for autonomous
         ));
     }
 
