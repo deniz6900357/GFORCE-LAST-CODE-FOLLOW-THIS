@@ -15,14 +15,14 @@ public final class ShooterConstants {
     }
 
     /** CAN bus name for shooter motors */
-    public static final String CAN_BUS_NAME = "rio"; // Change to "canivore" if using CANivore
+    public static final String CAN_BUS_NAME = "CANivore"; // Using CANivore bus
 
     /**
      * Flywheel constants - Uses 1x Kraken X60 motor.
      */
     public static final class Flywheel {
         // Motor CAN ID - CONFIGURE THIS FOR YOUR ROBOT
-        public static final int MOTOR_ID = 20;
+        public static final int MOTOR_ID = 35;
 
         // Motor inversion
         public static final boolean INVERT_MOTOR = false;
@@ -43,11 +43,11 @@ public final class ShooterConstants {
         // Gear ratio (motor rotations : flywheel rotations)
         public static final double GEAR_RATIO = 1.0; // 1:1 direct drive
 
-        // Preset velocities (rad/s) - tune based on testing
+        // Preset velocities (rad/s) - matching GFORCE values
         public static final double IDLE_VELOCITY = 0.0;
-        public static final double FENDER_VELOCITY = 200.0;    // Close shot
+        public static final double FENDER_VELOCITY = 200.0;   // Close shot
         public static final double MID_RANGE_VELOCITY = 350.0; // Medium distance
-        public static final double FAR_VELOCITY = 450.0;       // Far shot
+        public static final double FAR_VELOCITY = 450.0;      // Far shot
     }
 
     /**
@@ -55,7 +55,7 @@ public final class ShooterConstants {
      */
     public static final class Hood {
         // Motor CAN ID - CONFIGURE THIS FOR YOUR ROBOT
-        public static final int MOTOR_ID = 22;
+        public static final int MOTOR_ID = 34;
 
         // Motor inversion
         public static final boolean INVERT_MOTOR = false;

@@ -24,11 +24,10 @@ import frc.robot.commands.AimToHubCommand;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.intake.IntakeMotor;
-import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.shooter.flywheel.Flywheel;
 import frc.robot.subsystems.shooter.flywheel.FlywheelIOReal;
 import frc.robot.subsystems.shooter.hood.Hood;
-import frc.robot.subsystems.shooter.hood.HoodIOReal;
+import frc.robot.subsystems.shooter.hood.HoodIOSim;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIOReal;
 
@@ -55,7 +54,7 @@ public class RobotContainer {
 
     // Shooter subsystems (MA architecture - separate subsystems)
     private final Flywheel flywheel = new Flywheel(new FlywheelIOReal());
-    private final Hood hood = new Hood(new HoodIOReal());
+    private final Hood hood = new Hood(new HoodIOSim()); // Hood hardware not connected - using simulation
 
     // Feeder subsystem (NEO motor with 27:1 reduction)
     private final Feeder feeder = new Feeder(new FeederIOReal());
@@ -149,32 +148,26 @@ public class RobotContainer {
         // brake on right bumper
         joystick.rightBumper().whileTrue(drivetrain.applyRequest(() -> brake));
 
-        // A button: Hub'a dön + Shooter hazırla (feeder YOK - manuel RT ile kontrol edilir)
-        // Shooter hazır olduğunda SmartDashboard'da "Flywheel/At Goal" ve "Hood/At Goal" true olur
-        joystick.a().whileTrue(
-            Commands.parallel(
-                // Hub'a dön (sürücü kontrolü korunur)
-                new AimToHubCommand(
-                    drivetrain,
-                    joystick::getLeftY,
-                    joystick::getLeftX,
-                    MaxSpeed,
-                    MaxAngularRate
-                ),
-
-                // Shooter'ı hazırla (hood açısı + flywheel hızı)
-                Shooter.runCalculatedShotCommand(flywheel, hood, () -> drivetrain.getState().Pose)
-            ).withName("Aim and Prepare Shooter")
-        );
-
         // Hood zero etme (POV sağ) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
         joystick.povRight().onTrue(hood.zeroCommand());
 
         // RT (sağ trigger): Feeder - basılı tut, feeder çalışır; bırak, feeder durur
-        joystick.rightTrigger().whileTrue(feeder.feedCommand());
+        joystick.rightTrigger().whileTrue(
+            Commands.startEnd(
+                feeder::feed,
+                feeder::stop,
+                feeder
+            )
+        );
 
         // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor durur
-        joystick.leftTrigger().whileTrue(intakeMotor.intakeCommand());
+        joystick.leftTrigger().whileTrue(
+            Commands.startEnd(
+                () -> intakeMotor.setSpeed(0.1),
+                intakeMotor::stop,
+                intakeMotor
+            )
+        );
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }

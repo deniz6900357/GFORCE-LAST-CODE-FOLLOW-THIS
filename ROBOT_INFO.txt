@@ -89,7 +89,7 @@ Mimari:                Mechanical Advantage Team 6328 Architecture
 
 Flywheel Motor:
   - Motor:             Kraken X60 (TalonFX)
-  - CAN ID:            20
+  - CAN ID:            35
   - Bus:               CANivore
   - Control:           Bang-Bang Velocity Control
     • Duty Cycle Mode: Hızlı hızlanma
@@ -113,27 +113,30 @@ Shot Calculator:
   - Method:            InterpolatingTreeMap
   - Alliance Aware:    Yes (Blue/Red speaker positions)
   - Distance Range:    1.34m - 5.60m
+  - Flywheel Speed:    21-29 rad/s (10% tuning mode)
+  - Presets:           FENDER: 20 rad/s, MID: 35 rad/s, FAR: 45 rad/s
 
 
 FEEDER SİSTEMİ (Feeder System):
 --------------------------------------------------------------------------------
-Motor:                 NEO (SparkMax)
-CAN ID:                30
+Motors:                2x NEO (SparkMax)
+CAN ID:                32, 33
 Bus:                   RoboRIO CAN
 Gear Ratio:            27:1
 Control:               Percent Output (Simple)
+Default Speed:         10% (0.1)
 Speed:                 80% (0.8)
-Current Limit:         40 Amps
+Current Limit:         40 Amps per motor
 Neutral Mode:          Brake
 
 
 INTAKE SİSTEMİ (Intake System):
 --------------------------------------------------------------------------------
 Motor:                 Kraken X60 (TalonFX)
-CAN ID:                18
+CAN ID:                31
 Bus:                   CANivore
 Control:               Percent Output (Simple)
-Speed:                 70% (0.7)
+Speed:                 10% (0.1)
 Current Limit:         60 Amps
 Neutral Mode:          Coast
 
@@ -259,24 +262,24 @@ Sürüş Kontrolleri:
   - Right Stick X:     Dönüş (saat yönü tersi)
 
 Buton Atamaları:
-  - A Button:          Hub'a Dön + Shooter Hazırla (whileTrue)
+  - A Button:          Hub'a Dön + Shooter BASİT TEST MODU (whileTrue)
                        • Robot hub'a döner (AimToHubCommand)
-                       • Hood açısı + Flywheel hızı ayarlanır
-                       • ShotCalculator ile mesafe bazlı otomatik ayar
-                       • SmartDashboard: "Flywheel/At Goal", "Hood/At Goal"
+                       • Motor direkt %10 hızda döner
+                       • Tüm kontrol sistemlerini bypass eder
+                       • A bırakınca durur
                        • NOT: Feeder MANUEL (RT ile)
 
   - B Button:          Tekerlekleri yönlendirme modu (Point Wheels)
 
   - RT (Right Trigger): Feeder (whileTrue)
-                       • Basılı tut = Feeder çalışır (%80)
+                       • Basılı tut = Feeder çalışır (%10)
                        • Bırak = Feeder durur
                        • Top shooter'a beslenir
 
   - LT (Left Trigger):  Intake Motor (whileTrue)
-                       • Basılı tut = Intake motor çalışır (%70)
+                       • Basılı tut = Intake motor çalışır (%10)
                        • Bırak = Motor durur
-                       • Kraken X60 motor (CANivore)
+                       • Kraken X60 motor (CANivore, ID: 31)
 
   - Left Bumper:       Field-centric reset (alliance-aware, gyro 0°)
 
@@ -398,9 +401,9 @@ Maç Öncesi Kontroller:
   [ ] Controller pairing
   [ ] Alliance station seçimi
   [ ] Hood ZERO yapıldı mı? (POV Right - İLK ÇALIŞTIRMADA MUTLAKA!)
-  [ ] Shooter motor bağlantıları (ID 20, 22 CANivore)
-  [ ] Feeder motor bağlantısı (ID 30 RoboRIO CAN)
-  [ ] Intake motor bağlantısı (ID 18 CANivore)
+  [ ] Shooter motor bağlantıları (ID 35 Flywheel, ID 22 Hood - CANivore)
+  [ ] Feeder motor bağlantıları (ID 32, 33 RoboRIO CAN)
+  [ ] Intake motor bağlantısı (ID 31 CANivore)
 
 Yazılım Güncellemeleri:
   [ ] Robot code deploy
@@ -435,12 +438,13 @@ CANivore Bus:
   ID 13:  BR Drive Motor (Swerve)
   ID 14:  BR Steer Motor (Swerve)
   ID 15:  BR CANcoder (Swerve)
-  ID 18:  Intake Motor (Kraken X60)
-  ID 20:  Flywheel Motor (Kraken X60)
   ID 22:  Hood Motor (Kraken X44)
+  ID 31:  Intake Motor (Kraken X60)
+  ID 35:  Flywheel Motor (Kraken X60)
 
 RoboRIO CAN Bus:
-  ID 30:  Feeder Motor (NEO)
+  ID 32:  Feeder Motor 1 (NEO)
+  ID 33:  Feeder Motor 2 (NEO)
 
 
 ================================================================================
