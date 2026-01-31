@@ -35,5 +35,10 @@ public class RobotConstants {
                         public static final String ROBORIO_BUS = "rio"; // veya "" (boş string)
 
                 }
+
+                public static class PWM {
+                        public static final int BLINKIN_PORT = 0; // REV Blinkin PWM Portu (0 olarak ayarlı)
+                }
+
             }
 }
