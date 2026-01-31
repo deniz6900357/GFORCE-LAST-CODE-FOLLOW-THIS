@@ -30,16 +30,20 @@ import frc.robot.subsystems.shooter.hood.Hood;
 import frc.robot.subsystems.shooter.hood.HoodIOSim;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIOReal;
+import frc.robot.subsystems.partimodu.LED;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
-    private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
+    private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second
+                                                                                      // max angular velocity
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
             .withDeadband(MaxSpeed * 0.05).withRotationalDeadband(MaxAngularRate * 0.05) // 5% deadband
             .withDriveRequestType(DriveRequestType.Velocity) // Use velocity control for drive motors
-            .withSteerRequestType(com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType.MotionMagicExpo); // Advanced steer control
+            .withSteerRequestType(com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType.MotionMagicExpo); // Advanced
+                                                                                                           // steer
+                                                                                                           // control
     private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
 
@@ -58,6 +62,9 @@ public class RobotContainer {
 
     // Feeder subsystem (NEO motor with 27:1 reduction)
     private final Feeder feeder = new Feeder(new FeederIOReal());
+
+    // LED Subsystem
+    private final LED ledSubsystem = new LED();
 
     // Auto chooser for selecting autonomous routines
     private final SendableChooser<Command> autoChooser;
@@ -79,13 +86,15 @@ public class RobotContainer {
     }
 
     /**
-     * Sets the initial pose based on alliance. Call this in teleopInit() or autonomousInit().
+     * Sets the initial pose based on alliance. Call this in teleopInit() or
+     * autonomousInit().
      */
     public void setInitialPoseForAlliance() {
         // Set initial pose based on alliance for AdvantageScope visualization
         // Blue: Near blue hub (X: 4.6m, Y: 2.35m), facing forward (0°)
         // Red: Near red hub (X: 11.9m, Y: 2.35m), facing blue wall (180°)
-        var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance().orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
+        var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
+                .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
         Pose2d startPose;
         if (alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
             startPose = new Pose2d(4.6, 2.35, Rotation2d.kZero);
@@ -104,39 +113,42 @@ public class RobotContainer {
     private void registerNamedCommands() {
         // Register AimToHub command for autonomous use
         // Usage: Add "AimToHub" event marker in PathPlanner
-        // Command will finish automatically when aligned with hub (within 3° tolerance for 5 loops)
+        // Command will finish automatically when aligned with hub (within 3° tolerance
+        // for 5 loops)
         NamedCommands.registerCommand("AimToHub", new AimToHubCommand(
-            drivetrain,
-            () -> 0.0,        // No forward movement in auto
-            () -> 0.0,        // No strafe movement in auto
-            MaxSpeed,
-            MaxAngularRate,
-            true              // finishWhenAtTarget = true for autonomous
+                drivetrain,
+                () -> 0.0, // No forward movement in auto
+                () -> 0.0, // No strafe movement in auto
+                MaxSpeed,
+                MaxAngularRate,
+                true // finishWhenAtTarget = true for autonomous
         ));
     }
 
     private void configureBindings() {
+        // Varsayılan olarak LED'ler düz mavi yansın
+        ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setSolidBlue).withName("LED: Default Blue"));
+
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
         drivetrain.setDefaultCommand(
-            // Drivetrain will execute this command periodically
-            drivetrain.applyRequest(() ->
-                drive.withVelocityX(-joystick.getLeftY() * MaxSpeed) // Drive forward with negative Y (forward)
-                    .withVelocityY(-joystick.getLeftX() * MaxSpeed) // Drive left with negative X (left)
-                    .withRotationalRate(-joystick.getRightX() * MaxAngularRate) // Drive counterclockwise with negative X (left)
-            )
-        );
+                // Drivetrain will execute this command periodically
+                drivetrain.applyRequest(() -> drive.withVelocityX(-joystick.getLeftY() * MaxSpeed) // Drive forward with
+                                                                                                   // negative Y
+                                                                                                   // (forward)
+                        .withVelocityY(-joystick.getLeftX() * MaxSpeed) // Drive left with negative X (left)
+                        .withRotationalRate(-joystick.getRightX() * MaxAngularRate) // Drive counterclockwise with
+                                                                                    // negative X (left)
+                ));
 
         // Idle while the robot is disabled. This ensures the configured
         // neutral mode is applied to the drive motors while disabled.
         final var idle = new SwerveRequest.Idle();
         RobotModeTriggers.disabled().whileTrue(
-            drivetrain.applyRequest(() -> idle).ignoringDisable(true)
-        );
+                drivetrain.applyRequest(() -> idle).ignoringDisable(true));
 
-        joystick.b().whileTrue(drivetrain.applyRequest(() ->
-            point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
-        ));
+        joystick.b().whileTrue(drivetrain.applyRequest(
+                () -> point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))));
 
         // reset the field-centric heading on left bumper press
         // Resets gyro to 0 degrees (toward red alliance wall) for consistent controls
@@ -153,21 +165,28 @@ public class RobotContainer {
 
         // RT (sağ trigger): Feeder - basılı tut, feeder çalışır; bırak, feeder durur
         joystick.rightTrigger().whileTrue(
-            Commands.startEnd(
-                feeder::feed,
-                feeder::stop,
-                feeder
-            )
-        );
+                Commands.parallel(
+                        Commands.startEnd(
+                                feeder::feed,
+                                feeder::stop,
+                                feeder),
+                        ledSubsystem.run(ledSubsystem::setBlinkBlue).withName("LED: Blink Blue") // Atış tuşuna
+                                                                                                 // basılıyken Mavi
+                                                                                                 // Yanıp Sönme
+                ));
 
-        // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor durur
+        // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor
+        // durur
         joystick.leftTrigger().whileTrue(
-            Commands.startEnd(
-                () -> intakeMotor.setSpeed(0.1),
-                intakeMotor::stop,
-                intakeMotor
-            )
-        );
+                Commands.parallel(
+                        Commands.startEnd(
+                                () -> intakeMotor.setSpeed(0.1),
+                                intakeMotor::stop,
+                                intakeMotor),
+                        ledSubsystem.run(ledSubsystem::setBlinkWhite).withName("LED: Blink White") // Intake tuşuna
+                                                                                                   // basılıyken Beyaz
+                                                                                                   // Yanıp Sönme
+                ));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
