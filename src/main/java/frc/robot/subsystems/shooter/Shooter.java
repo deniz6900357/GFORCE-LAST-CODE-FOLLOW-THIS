@@ -89,6 +89,30 @@ public final class Shooter {
     }
 
     /**
+     * Creates a command to run shooter using ShotCalculator for PREDICTED pose.
+     *
+     * <p>Uses predictive aiming - calculates hood angle and flywheel velocity based on
+     * where the robot will be when the note reaches the target (compensates for robot movement).
+     *
+     * @param flywheel The flywheel subsystem
+     * @param hood The hood subsystem
+     * @param predictedPoseSupplier Supplier for predicted robot pose (from AimToHubCommand)
+     * @return Command that calculates and sets shooter parameters with predictive compensation
+     */
+    public static Command runPredictiveShotCommand(Flywheel flywheel, Hood hood,
+                                                   java.util.function.Supplier<Pose2d> predictedPoseSupplier) {
+        return Commands.run(() -> {
+            ShotCalculator.ShootingParameters params =
+                ShotCalculator.getInstance().calculateShotForPredictedPose(predictedPoseSupplier.get());
+
+            if (params.isValid) {
+                flywheel.setVelocity(params.flywheelVelocityRadPerSec);
+                hood.setAngle(params.hoodAngleRad);
+            }
+        }, flywheel, hood).withName("Shooter: Predictive Auto Aim");
+    }
+
+    /**
      * Creates a command to prepare for shooting and wait until ready.
      *
      * @param flywheel The flywheel subsystem

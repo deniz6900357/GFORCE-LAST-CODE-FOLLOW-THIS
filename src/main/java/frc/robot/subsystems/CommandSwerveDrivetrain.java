@@ -49,6 +49,8 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     private static final Rotation2d kRedAlliancePerspectiveRotation = Rotation2d.k180deg;
     /* Keep track if we've ever applied the operator perspective before or not */
     private boolean m_hasAppliedOperatorPerspective = false;
+    /* Track last alliance to detect changes */
+    private Alliance m_lastAlliance = null;
 
     /* Swerve requests to apply during SysId characterization */
     private final SwerveRequest.SysIdSwerveTranslation m_translationCharacterization = new SwerveRequest.SysIdSwerveTranslation();
@@ -232,21 +234,28 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     public void periodic() {
         /*
          * Periodically try to apply the operator perspective.
-         * If we haven't applied the operator perspective before, then we should apply it regardless of DS state.
-         * This allows us to correct the perspective in case the robot code restarts mid-match.
-         * Otherwise, only check and apply the operator perspective if the DS is disabled.
-         * This ensures driving behavior doesn't change until an explicit disable event occurs during testing.
+         * IMPORTANT FIX: Always update if alliance changes, not just on first apply or disabled.
+         * This fixes the bug where controls are reversed on first connection.
          */
-        if (!m_hasAppliedOperatorPerspective || DriverStation.isDisabled()) {
-            DriverStation.getAlliance().ifPresent(allianceColor -> {
+        DriverStation.getAlliance().ifPresent(allianceColor -> {
+            // Check if alliance changed or never applied before
+            boolean allianceChanged = (m_lastAlliance != null && m_lastAlliance != allianceColor);
+            boolean shouldApply = !m_hasAppliedOperatorPerspective || DriverStation.isDisabled() || allianceChanged;
+
+            if (shouldApply) {
                 setOperatorPerspectiveForward(
                     allianceColor == Alliance.Red
                         ? kRedAlliancePerspectiveRotation
                         : kBlueAlliancePerspectiveRotation
                 );
                 m_hasAppliedOperatorPerspective = true;
-            });
-        }
+                m_lastAlliance = allianceColor;
+
+                // Debug log when perspective changes
+                System.out.println("🔄 Operator Perspective Updated: " +
+                    (allianceColor == Alliance.Blue ? "BLUE (0°)" : "RED (180°)"));
+            }
+        });
 
         // Update pose estimation with MegaTag2 vision measurements
         updateVisionMeasurements();

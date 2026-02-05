@@ -157,6 +157,43 @@ public class ShotCalculator {
     }
 
     /**
+     * Calculates shooting parameters for a predicted future pose.
+     * Used with predictive aiming to compensate for robot movement during flight.
+     *
+     * @param predictedPose Predicted robot pose when note reaches target
+     * @return Shooting parameters (hood angle, flywheel velocity) based on predicted distance
+     */
+    public ShootingParameters calculateShotForPredictedPose(Pose2d predictedPose) {
+        // Get speaker position based on alliance
+        Translation2d speakerPosition = getSpeakerPosition();
+
+        // Calculate distance from PREDICTED position to speaker
+        double predictedDistance = predictedPose.getTranslation().getDistance(speakerPosition);
+
+        // Update telemetry with predicted values
+        SmartDashboard.putNumber("ShotCalc/PredictedDistance (m)", predictedDistance);
+        SmartDashboard.putBoolean("ShotCalc/PredictedInRange",
+            predictedDistance >= MIN_DISTANCE && predictedDistance <= MAX_DISTANCE);
+
+        // Check if distance is in valid range
+        if (predictedDistance < MIN_DISTANCE || predictedDistance > MAX_DISTANCE) {
+            SmartDashboard.putString("ShotCalc/Status", "PREDICTED OUT OF RANGE");
+            return ShootingParameters.invalid();
+        }
+
+        // Interpolate hood angle and flywheel speed from tables using PREDICTED distance
+        double hoodAngleRad = shotHoodAngleMap.get(predictedDistance).getRadians();
+        double flywheelVelocity = shotFlywheelSpeedMap.get(predictedDistance);
+
+        // Update telemetry
+        SmartDashboard.putNumber("ShotCalc/PredictedHoodAngle (deg)", Math.toDegrees(hoodAngleRad));
+        SmartDashboard.putNumber("ShotCalc/PredictedFlywheelVelocity (rad/s)", flywheelVelocity);
+        SmartDashboard.putString("ShotCalc/Status", "PREDICTIVE READY");
+
+        return new ShootingParameters(true, hoodAngleRad, flywheelVelocity, predictedDistance);
+    }
+
+    /**
      * Gets the speaker position based on current alliance.
      *
      * @return Speaker position on the field

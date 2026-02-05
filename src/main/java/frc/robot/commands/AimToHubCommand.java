@@ -10,6 +10,9 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Twist2d;
+import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
@@ -37,7 +40,7 @@ public class AimToHubCommand extends Command {
     // ========== Control Constants ==========
 
     // Proportional control constant for pose-based aiming
-    private static final double KP_POSE = 0.06;
+    private static final double KP_POSE = 0.08;
 
     // Minimum command to overcome friction - prevents robot from getting "stuck"
     // when very close to target
@@ -54,6 +57,49 @@ public class AimToHubCommand extends Command {
 
     // Joystick deadband - same as normal drive (10%)
     private static final double DEADBAND = 0.1;
+
+    // ========== Predictive Aiming Constants ==========
+
+    // Enable/disable predictive aiming for moving shots
+    private static final boolean ENABLE_PREDICTIVE_AIMING = true;
+
+    // Note velocity estimation (m/s) - approximate exit velocity from shooter
+    // This is calculated from flywheel surface speed and geometry
+    // Flywheel at 450 rad/s with 2" radius = ~11.4 m/s tangential velocity
+    // Accounting for compression and energy transfer (~70%), note exits at ~8 m/s
+    private static final double NOTE_EXIT_VELOCITY = 8.0;
+
+    // Gravity constant (m/s²)
+    private static final double GRAVITY = 9.81;
+
+    // Maximum lookahead time (seconds) - prevents extreme predictions
+    private static final double MAX_LOOKAHEAD_TIME = 2.0;
+
+    // Phase delay - time between calculation and execution (seconds)
+    private static final double PHASE_DELAY = 0.03;
+
+    // Number of lookahead iterations - converges on correct distance with movement
+    private static final int LOOKAHEAD_ITERATIONS = 20;
+
+    // Time-of-flight interpolation map (distance in meters -> time in seconds)
+    // Based on Mechanical Advantage Team 6328's empirical measurements
+    // Tune these values by measuring actual flight times at different distances
+    private static final InterpolatingDoubleTreeMap timeOfFlightMap = new InterpolatingDoubleTreeMap();
+
+    static {
+        // Distance (m) -> Flight time (s)
+        // Based on Mechanical Advantage Team 6328's empirical measurements
+        // TUNE THESE VALUES with real robot testing!
+        timeOfFlightMap.put(1.38, 0.90);  // Close range
+        timeOfFlightMap.put(1.88, 1.09);
+        timeOfFlightMap.put(3.15, 1.11);
+        timeOfFlightMap.put(4.55, 1.12);
+        timeOfFlightMap.put(5.68, 1.16);  // Far range
+
+        // If you need more granularity, add intermediate points after testing:
+        // timeOfFlightMap.put(2.50, 1.10);  // Example intermediate point
+        // timeOfFlightMap.put(3.80, 1.115); // Example intermediate point
+    }
 
     // ========== Subsystems and Inputs ==========
 
@@ -210,6 +256,66 @@ public class AimToHubCommand extends Command {
     }
 
     /**
+     * Calculates the predicted robot position accounting for velocity and flight time.
+     * Uses iterative lookahead approach from Mechanical Advantage Team 6328.
+     *
+     * @param currentPose Current robot pose
+     * @param robotVelocity Current robot chassis speeds (field-relative)
+     * @param targetPosition Static target position (hub center)
+     * @return Predicted robot pose when note reaches target
+     */
+    private Pose2d calculatePredictedPose(Pose2d currentPose, ChassisSpeeds robotVelocity, Translation2d targetPosition) {
+        if (!ENABLE_PREDICTIVE_AIMING) {
+            return currentPose;
+        }
+
+        // Apply phase delay - account for time between calculation and execution
+        Pose2d estimatedPose = currentPose.exp(new Twist2d(
+            robotVelocity.vxMetersPerSecond * PHASE_DELAY,
+            robotVelocity.vyMetersPerSecond * PHASE_DELAY,
+            robotVelocity.omegaRadiansPerSecond * PHASE_DELAY
+        ));
+
+        // Iterative lookahead - converges on correct distance with robot movement
+        // Similar to MA's approach: calculate distance -> get flight time -> predict position -> recalculate
+        double distance = estimatedPose.getTranslation().getDistance(targetPosition);
+
+        for (int i = 0; i < LOOKAHEAD_ITERATIONS; i++) {
+            // Get flight time for current distance
+            double timeOfFlight = timeOfFlightMap.get(distance);
+
+            // Clamp to max lookahead time for safety
+            if (timeOfFlight > MAX_LOOKAHEAD_TIME) {
+                timeOfFlight = MAX_LOOKAHEAD_TIME;
+            }
+
+            // Calculate where robot will be after note flight time
+            double offsetX = robotVelocity.vxMetersPerSecond * timeOfFlight;
+            double offsetY = robotVelocity.vyMetersPerSecond * timeOfFlight;
+            double offsetRotation = robotVelocity.omegaRadiansPerSecond * timeOfFlight;
+
+            // Update estimated pose with lookahead
+            estimatedPose = currentPose.exp(new Twist2d(
+                offsetX,
+                offsetY,
+                offsetRotation
+            ));
+
+            // Recalculate distance from new predicted position
+            double newDistance = estimatedPose.getTranslation().getDistance(targetPosition);
+
+            // Convergence check - if distance stopped changing significantly, we're done
+            if (Math.abs(newDistance - distance) < 0.01) {
+                break;
+            }
+
+            distance = newDistance;
+        }
+
+        return estimatedPose;
+    }
+
+    /**
      * Creates a new AimToHubCommand for teleop (runs until interrupted).
      *
      * @param drivetrain The swerve drivetrain subsystem
@@ -285,20 +391,21 @@ public class AimToHubCommand extends Command {
             ? BLUE_HUB_CENTER
             : RED_HUB_CENTER;
 
-        // Debug: Show hub center being used
-        SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
-        SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
-        SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
-
-        // Calculate angle from robot to hub center
+        // Calculate angle from robot to hub center (SIMPLIFIED - no complex filtering)
         Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
         double distanceToHub = robotToHub.getNorm();
         Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
 
         // Calculate rotation error (how much robot needs to turn)
+        // Simple approach: just normalize the angle difference
         double rotationError = getModuloRotation(
             angleToHub.getDegrees() - robotPose.getRotation().getDegrees()
         );
+
+        // Debug: Show aiming info
+        SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
+        SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
+        SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
 
         double steeringAdjust = 0.0;
 
@@ -326,7 +433,7 @@ public class AimToHubCommand extends Command {
             withinToleranceCount = 0;
         }
 
-        // Debug output
+        // Extended debug output
         SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
         SmartDashboard.putNumber("AimToHub/TargetAngle", angleToHub.getDegrees());
         SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
@@ -362,5 +469,15 @@ public class AimToHubCommand extends Command {
         }
         // Otherwise run until interrupted (teleop mode)
         return false;
+    }
+
+    /**
+     * Gets the current robot pose.
+     * Used by shooter subsystem for distance calculations.
+     *
+     * @return Current robot pose
+     */
+    public Pose2d getLastPredictedPose() {
+        return drivetrain.getState().Pose;
     }
 }

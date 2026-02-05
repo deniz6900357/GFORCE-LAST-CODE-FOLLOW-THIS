@@ -19,7 +19,10 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import edu.wpi.first.wpilibj.GenericHID;
 
+import frc.robot.automation.AutoTrench;
 import frc.robot.commands.AimToHubCommand;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
@@ -30,7 +33,10 @@ import frc.robot.subsystems.shooter.hood.Hood;
 import frc.robot.subsystems.shooter.hood.HoodIOSim;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIOReal;
+import frc.robot.subsystems.feeder.FeederIOSim;
 import frc.robot.subsystems.partimodu.LED;
+import frc.robot.subsystems.shooter.Shooter;
+import edu.wpi.first.wpilibj.RobotBase;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -44,7 +50,6 @@ public class RobotContainer {
             .withSteerRequestType(com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType.MotionMagicExpo); // Advanced
                                                                                                            // steer
                                                                                                            // control
-    private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
 
     private final Telemetry logger = new Telemetry(MaxSpeed);
@@ -61,7 +66,8 @@ public class RobotContainer {
     private final Hood hood = new Hood(new HoodIOSim()); // Hood hardware not connected - using simulation
 
     // Feeder subsystem (NEO motor with 27:1 reduction)
-    private final Feeder feeder = new Feeder(new FeederIOReal());
+    // Use sim implementation in simulation mode to avoid REVLib driver dependency
+    private final Feeder feeder = new Feeder(RobotBase.isReal() ? new FeederIOReal() : new FeederIOSim());
 
     // LED Subsystem
     private final LED ledSubsystem = new LED();
@@ -150,15 +156,66 @@ public class RobotContainer {
         joystick.b().whileTrue(drivetrain.applyRequest(
                 () -> point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))));
 
-        // reset the field-centric heading on left bumper press
-        // Resets gyro to 0 degrees (toward red alliance wall) for consistent controls
-        joystick.leftBumper().onTrue(drivetrain.runOnce(() -> {
-            var currentPose = drivetrain.getState().Pose;
-            drivetrain.resetPose(new Pose2d(currentPose.getTranslation(), Rotation2d.kZero));
-        }));
+        // Right Bumper (RB - Button 8): AutoTrench Sağ Geçit
+        // Blue: Alt geçit (Y: 0.65), Red: Üst geçit (Y: 7.45, mirrored)
+        // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
+        // Basılı tuttuğun sürece çalışır, bıraktığında durur
+        joystick.button(8).whileTrue(
+            Commands.runOnce(() -> {
+                System.out.println("⚡ RB TUŞUNA BASILDI (Button 8) - AutoTrench SAĞ tetikleniyor...");
+                SmartDashboard.putBoolean("AutoTrench/RightRunning", true);
+            })
+            .andThen(AutoTrench.allianceAwareRightTrenchSequence(drivetrain))
+            .finallyDo(() -> {
+                System.out.println("⏹️ RB BIRAKILDI - AutoTrench SAĞ durduruluyor...");
+                SmartDashboard.putBoolean("AutoTrench/RightRunning", false);
+            })
+        );
 
-        // brake on right bumper
-        joystick.rightBumper().whileTrue(drivetrain.applyRequest(() -> brake));
+        // Left Bumper (LB - Button 7): AutoTrench Sol Geçit
+        // Blue: Üst geçit (Y: 7.45), Red: Alt geçit (Y: 0.65, mirrored)
+        // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
+        // Basılı tuttuğun sürece çalışır, bıraktığında durur
+        joystick.button(7).whileTrue(
+            Commands.runOnce(() -> {
+                System.out.println("⚡ LB TUŞUNA BASILDI (Button 7) - AutoTrench SOL tetikleniyor...");
+                SmartDashboard.putBoolean("AutoTrench/LeftRunning", true);
+            })
+            .andThen(AutoTrench.allianceAwareLeftTrenchSequence(drivetrain))
+            .finallyDo(() -> {
+                System.out.println("⏹️ LB BIRAKILDI - AutoTrench SOL durduruluyor...");
+                SmartDashboard.putBoolean("AutoTrench/LeftRunning", false);
+            })
+        );
+
+        // A button: Predictive Aim + Shoot - Hub'a dön + Shooter predictive aiming ile çalışır
+        // Robot hareket halindeyken bile doğru aim ve hood açısı ayarlanır
+        final AimToHubCommand aimCommand = new AimToHubCommand(
+            drivetrain,
+            joystick::getLeftY,
+            joystick::getLeftX,
+            MaxSpeed,
+            MaxAngularRate
+        );
+
+        joystick.a().whileTrue(
+            Commands.parallel(
+                // Hub'a predictive aiming ile dön
+                aimCommand,
+
+                // Shooter: Predictive hood açısı ve flywheel hızı
+                Shooter.runPredictiveShotCommand(
+                    flywheel,
+                    hood,
+                    () -> {
+                        // AimToHubCommand'in hesapladığı predicted pose'u kullan
+                        Pose2d predicted = aimCommand.getLastPredictedPose();
+                        // İlk iteration'da null olabilir, o zaman mevcut pose'u kullan
+                        return predicted != null ? predicted : drivetrain.getState().Pose;
+                    }
+                )
+            ).withName("Predictive Aim + Shoot")
+        );
 
         // Hood zero etme (POV sağ) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
         joystick.povRight().onTrue(hood.zeroCommand());
@@ -187,6 +244,12 @@ public class RobotContainer {
                                                                                                    // basılıyken Beyaz
                                                                                                    // Yanıp Sönme
                 ));
+
+        // X tuşu (Klavye - Simülasyon): AutoTrench test için
+        // Simülasyonda klavyeden X'e basarak test edebilirsiniz - SAĞ trench (SMART direction)
+        GenericHID keyboard = new GenericHID(0);
+        new Trigger(() -> keyboard.getRawButton(27)) // X tuşu (button 27)
+            .onTrue(AutoTrench.allianceAwareRightTrenchSequence(drivetrain));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
