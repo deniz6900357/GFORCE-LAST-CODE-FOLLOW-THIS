@@ -15,7 +15,7 @@ public final class ShooterConstants {
     }
 
     /** CAN bus name for shooter motors */
-    public static final String CAN_BUS_NAME = "CANivore"; // Using CANivore bus
+    public static final String CAN_BUS_NAME = "CANivore"; // Change to "rio" if NOT using CANivore
 
     /**
      * Flywheel constants - Uses 1x Kraken X60 motor.
@@ -43,11 +43,11 @@ public final class ShooterConstants {
         // Gear ratio (motor rotations : flywheel rotations)
         public static final double GEAR_RATIO = 1.0; // 1:1 direct drive
 
-        // Preset velocities (rad/s) - matching GFORCE values
+        // Preset velocities (rad/s) - tune based on testing
         public static final double IDLE_VELOCITY = 0.0;
-        public static final double FENDER_VELOCITY = 200.0;   // Close shot
+        public static final double FENDER_VELOCITY = 200.0;    // Close shot
         public static final double MID_RANGE_VELOCITY = 350.0; // Medium distance
-        public static final double FAR_VELOCITY = 450.0;      // Far shot
+        public static final double FAR_VELOCITY = 450.0;       // Far shot
     }
 
     /**
@@ -74,7 +74,9 @@ public final class ShooterConstants {
 
         // Gear ratio (motor rotations : hood rotations)
         // IMPORTANT: Measure this for your robot!
-        public static final double GEAR_RATIO = 50.0; // Example: 50:1 reduction
+        // Tuned based on 15°-45° test: needs 30° movement (was 18° at ratio 100)
+        // NOTE: MA original was 80:1, but our robot's mechanism requires 166:1
+        public static final double GEAR_RATIO = 166.0; // Motor rotations per mechanism rotation
 
         // Preset angles (radians) - tune based on testing
         public static final double FENDER_ANGLE = Math.toRadians(19.0);    // Close shot

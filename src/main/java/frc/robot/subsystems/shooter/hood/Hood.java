@@ -1,176 +1,172 @@
+// Copyright (c) 2025-2026 Littleton Robotics
+// http://github.com/Mechanical-Advantage
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file at
+// the root directory of this project.
+
 package frc.robot.subsystems.shooter.hood;
 
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.math.util.Units;
 import frc.robot.subsystems.shooter.ShooterConstants;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.Robot;
+import frc.robot.subsystems.shooter.LaunchCalculator;
+import frc.robot.subsystems.shooter.hood.HoodIO.HoodIOOutputMode;
+import frc.robot.subsystems.shooter.hood.HoodIO.HoodIOOutputs;
+import frc.robot.util.FullSubsystem;
+import frc.robot.util.LoggedTunableNumber;
+import java.util.function.BooleanSupplier;
+import java.util.function.DoubleSupplier;
+import org.littletonrobotics.junction.Logger;
 
-/**
- * Hood subsystem for shooter angle adjustment.
- *
- * <p>Based on Mechanical Advantage Team 6328's architecture.
- * Controls hood angle using closed-loop position control with Motion Magic.
- */
-public class Hood extends SubsystemBase {
+public class Hood extends FullSubsystem {
+  private static final double minAngle = ShooterConstants.Hood.MIN_ANGLE_RAD;
+  private static final double maxAngle = ShooterConstants.Hood.MAX_ANGLE_RAD;
 
-    private final HoodIO io;
-    private final HoodIO.HoodIOInputs inputs = new HoodIO.HoodIOInputs();
-    private final HoodIO.HoodIOOutputs outputs = new HoodIO.HoodIOOutputs();
+  private static final LoggedTunableNumber kP = new LoggedTunableNumber("Hood/kP");
+  private static final LoggedTunableNumber kD = new LoggedTunableNumber("Hood/kD");
+  private static final LoggedTunableNumber toleranceDeg =
+      new LoggedTunableNumber("Hood/ToleranceDeg");
 
-    // Goal angle (radians)
-    private double goalAngleRad = ShooterConstants.Hood.STOW_ANGLE;
+  static {
+    kP.initDefault(100.0);  // Motion Magic onboard PID (tune as needed)
+    kD.initDefault(5.0);    // Motion Magic damping (tune as needed)
+    toleranceDeg.initDefault(1.0);
+  }
 
-    // Zeroing state
-    private boolean isZeroed = false;
-    private double hoodOffset = 0.0; // Calibration offset
+  private final HoodIO io;
+  private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
+  private final HoodIOOutputs outputs = new HoodIOOutputs();
 
-    // State tracking
-    private int consecutiveLoopsAtGoal = 0;
-    private static final int LOOPS_AT_GOAL_REQUIRED = 10; // 200ms at 50Hz
+  // Connected debouncer
+  private final Debouncer motorConnectedDebouncer =
+      new Debouncer(0.5, Debouncer.DebounceType.kFalling);
+  private boolean motorDisconnectedAlertActive = false;
 
-    /**
-     * Creates a new Hood subsystem.
-     *
-     * @param io The IO implementation to use
-     */
-    public Hood(HoodIO io) {
-        this.io = io;
+  private BooleanSupplier coastOverride = () -> false;
+
+  private double goalAngle = 0.0;
+  private double goalVelocity = 0.0;
+
+  private static double hoodOffset = 0.0;
+  private boolean hoodZeroed = false;
+
+  public Hood(HoodIO io) {
+    this.io = io;
+
+    // Auto-zero on startup so robot is immediately ready
+    zero();
+  }
+
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs("Hood", inputs);
+
+    // Motor disconnection alert
+    boolean motorDisconnected = !motorConnectedDebouncer.calculate(inputs.motorConnected);
+    if (Robot.showHardwareAlerts() && motorDisconnected && !motorDisconnectedAlertActive) {
+      System.err.println("WARNING: Hood motor disconnected!");
+      motorDisconnectedAlertActive = true;
+    } else if (!motorDisconnected) {
+      motorDisconnectedAlertActive = false;
     }
 
-    @Override
-    public void periodic() {
-        // Update inputs from hardware
-        io.updateInputs(inputs);
+    // Stop when disabled
+    if (DriverStation.isDisabled() || !hoodZeroed) {
+      outputs.mode = HoodIOOutputMode.BRAKE;
 
-        // Determine control mode
-        if (!isZeroed) {
-            outputs.mode = HoodIO.HoodIOOutputMode.BRAKE;
-        } else {
-            outputs.mode = HoodIO.HoodIOOutputMode.CLOSED_LOOP;
-
-            // Clamp goal angle to safe limits
-            double clampedGoal = MathUtil.clamp(
-                    goalAngleRad,
-                    ShooterConstants.Hood.MIN_ANGLE_RAD,
-                    ShooterConstants.Hood.MAX_ANGLE_RAD);
-
-            // Apply offset calibration
-            outputs.positionRad = clampedGoal - hoodOffset;
-            outputs.kP = ShooterConstants.Hood.KP;
-            outputs.kD = ShooterConstants.Hood.KD;
-        }
-
-        // Apply outputs to hardware
-        io.applyOutputs(outputs);
-
-        // Track "at goal" status
-        double positionError = Math.abs(getMeasuredAngleRad() - goalAngleRad);
-        if (isZeroed && positionError <= ShooterConstants.Hood.POSITION_TOLERANCE) {
-            consecutiveLoopsAtGoal++;
-        } else {
-            consecutiveLoopsAtGoal = 0;
-        }
-
-        // Telemetry
-        updateTelemetry();
+      if (coastOverride.getAsBoolean()) {
+        outputs.mode = HoodIOOutputMode.COAST;
+      }
     }
 
-    /**
-     * Zeros/calibrates the hood at its current position as the minimum angle.
-     * Call this when the hood is physically at the minimum mechanical stop.
-     */
-    public void zero() {
-        hoodOffset = ShooterConstants.Hood.MIN_ANGLE_RAD - inputs.positionRad;
-        isZeroed = true;
-        System.out.println("Hood zeroed! Offset: " + Math.toDegrees(hoodOffset) + " degrees");
+    // Update tunable numbers
+    outputs.kP = kP.get();
+    outputs.kD = kD.get();
+
+    // Dashboard telemetry - Elastic/Shuffleboard
+    Logger.recordOutput("Hood/CurrentAngleDeg", Math.toDegrees(getMeasuredAngleRad()));
+    Logger.recordOutput("Hood/GoalAngleDeg", Math.toDegrees(goalAngle));
+    Logger.recordOutput("Hood/AtGoal", atGoal());
+    Logger.recordOutput("Hood/IsZeroed", hoodZeroed);
+    Logger.recordOutput("Hood/AngleErrorDeg", Math.toDegrees(Math.abs(getMeasuredAngleRad() - goalAngle)));
+  }
+
+  @Override
+  public void periodicAfterScheduler() {
+    if (DriverStation.isEnabled() && hoodZeroed) {
+      outputs.positionRad = MathUtil.clamp(goalAngle, minAngle, maxAngle) - hoodOffset;
+      outputs.velocityRadsPerSec = goalVelocity;
+      outputs.mode = HoodIOOutputMode.CLOSED_LOOP;
+
+      // Log state
+      Logger.recordOutput("Hood/Profile/GoalPositionRad", goalAngle);
+      Logger.recordOutput("Hood/Profile/GoalVelocityRadPerSec", goalVelocity);
     }
 
-    /**
-     * Sets the target hood angle.
-     *
-     * @param angleRad Target angle in radians
-     */
-    public void setAngle(double angleRad) {
-        this.goalAngleRad = angleRad;
-    }
+    io.applyOutputs(outputs);
+  }
 
-    /**
-     * Gets the current measured angle (with calibration applied).
-     *
-     * @return Current angle in radians
-     */
-    public double getMeasuredAngleRad() {
-        return inputs.positionRad + hoodOffset;
-    }
+  private void setGoalParams(double angle, double velocity) {
+    goalAngle = angle;
+    goalVelocity = velocity;
+  }
 
-    /**
-     * Checks if hood is at goal angle.
-     *
-     * @return True if angle is within tolerance for required duration
-     */
-    public boolean atGoal() {
-        return isZeroed && consecutiveLoopsAtGoal >= LOOPS_AT_GOAL_REQUIRED;
-    }
+  public double getMeasuredAngleRad() {
+    return inputs.positionRads + hoodOffset;
+  }
 
-    /**
-     * Checks if hood has been zeroed/calibrated.
-     *
-     * @return True if zeroed
-     */
-    public boolean isZeroed() {
-        return isZeroed;
-    }
+  public boolean atGoal() {
+    return DriverStation.isEnabled()
+        && hoodZeroed
+        && Math.abs(getMeasuredAngleRad() - goalAngle)
+            <= Units.degreesToRadians(toleranceDeg.get());
+  }
 
-    /**
-     * Creates a command to zero the hood.
-     * Run this when the hood is at its minimum mechanical stop.
-     *
-     * @return Command that zeros the hood
-     */
-    public Command zeroCommand() {
-        return runOnce(this::zero)
-                .ignoringDisable(true)
-                .withName("Hood: Zero");
-    }
+  public boolean isZeroed() {
+    return hoodZeroed;
+  }
 
-    /**
-     * Creates a command to run the hood at a fixed angle.
-     *
-     * @param angleRad Target angle in radians
-     * @return Command that controls the hood angle
-     */
-    public Command setAngleCommand(double angleRad) {
-        return run(() -> setAngle(angleRad))
-                .withName("Hood: " + Math.round(Math.toDegrees(angleRad)) + "°");
-    }
+  private void zero() {
+    hoodOffset = minAngle - inputs.positionRads;
+    hoodZeroed = true;
+  }
 
-    /**
-     * Creates a command to move to stow position.
-     *
-     * @return Command that stows the hood
-     */
-    public Command stowCommand() {
-        return setAngleCommand(ShooterConstants.Hood.STOW_ANGLE);
-    }
+  public void setCoastOverride(BooleanSupplier coastOverride) {
+    this.coastOverride = coastOverride;
+  }
 
-    /**
-     * Updates telemetry to SmartDashboard.
-     */
-    private void updateTelemetry() {
-        SmartDashboard.putNumber("Hood/Goal Angle (deg)", Math.toDegrees(goalAngleRad));
-        SmartDashboard.putNumber("Hood/Measured Angle (deg)", Math.toDegrees(getMeasuredAngleRad()));
-        SmartDashboard.putNumber("Hood/Raw Position (deg)", Math.toDegrees(inputs.positionRad));
-        SmartDashboard.putNumber("Hood/Offset (deg)", Math.toDegrees(hoodOffset));
+  public void setAngle(double angleRad) {
+    setGoalParams(angleRad, 0.0);
+  }
 
-        double angleError = Math.abs(goalAngleRad - getMeasuredAngleRad());
-        SmartDashboard.putNumber("Hood/Angle Error (deg)", Math.toDegrees(angleError));
-        SmartDashboard.putBoolean("Hood/At Goal", atGoal());
-        SmartDashboard.putBoolean("Hood/Zeroed", isZeroed);
+  public Command setAngleCommand(double angleRad) {
+    return run(() -> setAngle(angleRad))
+        .withName("Hood: " + Math.round(Math.toDegrees(angleRad)) + "°");
+  }
 
-        SmartDashboard.putNumber("Hood/Current (A)", inputs.supplyCurrentAmps);
-        SmartDashboard.putNumber("Hood/Temp (C)", inputs.tempCelsius);
-        SmartDashboard.putBoolean("Hood/Connected", inputs.motorConnected);
-        SmartDashboard.putString("Hood/Control Mode", outputs.mode.toString());
-    }
+  public Command stowCommand() {
+    return setAngleCommand(minAngle);
+  }
+
+  public Command runTrackTargetCommand() {
+    return run(
+        () -> {
+          LaunchCalculator.getInstance().clearLaunchingParameters();
+          var params = LaunchCalculator.getInstance().getParameters();
+          setGoalParams(params.hoodAngle(), params.hoodVelocity());
+        });
+  }
+
+  public Command runFixedCommand(DoubleSupplier angle, DoubleSupplier velocity) {
+    return run(() -> setGoalParams(angle.getAsDouble(), velocity.getAsDouble()));
+  }
+
+  public Command zeroCommand() {
+    return runOnce(this::zero).ignoringDisable(true);
+  }
 }

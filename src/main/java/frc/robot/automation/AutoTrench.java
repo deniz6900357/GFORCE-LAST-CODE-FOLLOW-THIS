@@ -33,11 +33,10 @@ public class AutoTrench {
      * @return Command that moves robot to target pose
      */
     public static Command moveToPose(Pose2d pose) {
-        Command pathfindingCommand = AutoBuilder.pathfindToPose(
-            pose,
-            DEFAULT_CONSTRAINTS
-        );
-        return Commands.deferredProxy(() -> pathfindingCommand);
+        return Commands.defer(() -> {
+            System.out.println("🎯 AutoTrench: Creating pathfinding command to: " + pose);
+            return AutoBuilder.pathfindToPose(pose, DEFAULT_CONSTRAINTS);
+        }, java.util.Set.of());
     }
 
     /**
@@ -48,11 +47,10 @@ public class AutoTrench {
      * @return Command that moves robot to target pose
      */
     public static Command moveToPose(Pose2d pose, PathConstraints constraints) {
-        Command pathfindingCommand = AutoBuilder.pathfindToPose(
-            pose,
-            constraints
-        );
-        return Commands.deferredProxy(() -> pathfindingCommand);
+        return Commands.defer(() -> {
+            System.out.println("🎯 AutoTrench: Creating pathfinding command to: " + pose + " with custom constraints");
+            return AutoBuilder.pathfindToPose(pose, constraints);
+        }, java.util.Set.of());
     }
 
     /**
@@ -194,7 +192,7 @@ public class AutoTrench {
                     System.out.println("➡️ Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
                     return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_1, BLUE_LEFT_TRENCH_POS_2);
                 }
-            }, new java.util.HashSet<>()),
+            }, java.util.Set.of()),
             // Red alliance
             Commands.defer(() -> {
                 double robotX = drivetrain.getState().Pose.getX();
@@ -207,7 +205,7 @@ public class AutoTrench {
                     System.out.println("➡️ Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
                     return moveToPoseSequence(RED_LEFT_TRENCH_POS_1, RED_LEFT_TRENCH_POS_2);
                 }
-            }, new java.util.HashSet<>()),
+            }, java.util.Set.of()),
             () -> {
                 var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
                     .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
@@ -241,7 +239,7 @@ public class AutoTrench {
                     System.out.println("➡️ Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
                     return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_1, BLUE_RIGHT_TRENCH_POS_2);
                 }
-            }, new java.util.HashSet<>()),
+            }, java.util.Set.of()),
             // Red alliance
             Commands.defer(() -> {
                 double robotX = drivetrain.getState().Pose.getX();
@@ -254,7 +252,7 @@ public class AutoTrench {
                     System.out.println("➡️ Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
                     return moveToPoseSequence(RED_RIGHT_TRENCH_POS_1, RED_RIGHT_TRENCH_POS_2);
                 }
-            }, new java.util.HashSet<>()),
+            }, java.util.Set.of()),
             () -> {
                 var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
                     .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);

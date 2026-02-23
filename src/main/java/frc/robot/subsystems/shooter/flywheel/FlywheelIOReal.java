@@ -54,12 +54,15 @@ public class FlywheelIOReal implements FlywheelIO {
     @Override
     public void updateInputs(FlywheelIOInputs inputs) {
         inputs.connected = motor.isAlive();
-        inputs.positionRad = motor.getPosition().getValueAsDouble() * 2.0 * Math.PI;
-        inputs.velocityRadPerSec = motor.getVelocity().getValueAsDouble() * 2.0 * Math.PI;
-        inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
+        inputs.followerConnected = true; // Single motor, no follower in this implementation
+        inputs.positionRads = motor.getPosition().getValueAsDouble() * 2.0 * Math.PI;
+        inputs.velocityRadsPerSec = motor.getVelocity().getValueAsDouble() * 2.0 * Math.PI;
+        inputs.appliedVoltage = motor.getMotorVoltage().getValueAsDouble();
         inputs.supplyCurrentAmps = motor.getSupplyCurrent().getValueAsDouble();
         inputs.torqueCurrentAmps = motor.getTorqueCurrent().getValueAsDouble();
         inputs.tempCelsius = motor.getDeviceTemp().getValueAsDouble();
+        inputs.followerSupplyCurrentAmps = 0.0;
+        inputs.followerTempCelsius = 0.0;
     }
 
     @Override
@@ -71,14 +74,14 @@ public class FlywheelIOReal implements FlywheelIO {
 
             case DUTY_CYCLE_BANG_BANG:
                 // Bang-bang control: full power when below setpoint
-                double dutyCycle = outputs.velocityRadPerSec > 0.0 ? 1.0 : 0.0;
+                double dutyCycle = outputs.velocityRadsPerSec > 0.0 ? 1.0 : 0.0;
                 motor.setControl(dutyCycleRequest.withOutput(dutyCycle));
                 break;
 
             case TORQUE_CURRENT_BANG_BANG:
                 // Torque current control: precise velocity holding near setpoint
                 // Convert rad/s to rotations per second
-                double velocityRPS = outputs.velocityRadPerSec / (2.0 * Math.PI);
+                double velocityRPS = outputs.velocityRadsPerSec / (2.0 * Math.PI);
 
                 // Calculate feedforward torque current
                 double feedforwardCurrent = velocityRPS * ShooterConstants.Flywheel.TORQUE_CURRENT_SCALE;

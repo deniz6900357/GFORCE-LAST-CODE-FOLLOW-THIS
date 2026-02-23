@@ -1,159 +1,154 @@
+// Copyright (c) 2025-2026 Littleton Robotics
+// http://github.com/Mechanical-Advantage
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file at
+// the root directory of this project.
+
 package frc.robot.subsystems.shooter.flywheel;
 
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.subsystems.shooter.ShooterConstants;
+import frc.robot.Robot;
+import frc.robot.subsystems.shooter.LaunchCalculator;
+import frc.robot.subsystems.shooter.flywheel.FlywheelIO.FlywheelIOOutputMode;
+import frc.robot.subsystems.shooter.flywheel.FlywheelIO.FlywheelIOOutputs;
+import frc.robot.util.FullSubsystem;
+import frc.robot.util.LoggedTunableNumber;
+import java.util.function.DoubleSupplier;
+import org.littletonrobotics.junction.Logger;
 
-/**
- * Flywheel subsystem for shooter velocity control.
- *
- * <p>Based on Mechanical Advantage Team 6328 RobotCode2026Public.
- * Controls shooter flywheel velocity using dual-mode bang-bang control:
- * <ul>
- *   <li>Duty Cycle Bang-Bang: Initial velocity ramp-up</li>
- *   <li>Torque Current Bang-Bang: Precise holding near setpoint</li>
- * </ul>
- */
-public class Flywheel extends SubsystemBase {
+public class Flywheel extends FullSubsystem {
+  private final String name;
+  private final FlywheelIO io;
+  private final FlywheelIOInputsAutoLogged inputs = new FlywheelIOInputsAutoLogged();
+  private final FlywheelIOOutputs outputs = new FlywheelIOOutputs();
 
-    private final FlywheelIO io;
-    private final FlywheelIO.FlywheelIOInputs inputs = new FlywheelIO.FlywheelIOInputs();
-    private final FlywheelIO.FlywheelIOOutputs outputs = new FlywheelIO.FlywheelIOOutputs();
+  private final Debouncer motorConnectedDebouncer =
+      new Debouncer(0.5, Debouncer.DebounceType.kFalling);
+  private final Debouncer motorFollowerConnectedDebouncer =
+      new Debouncer(0.5, Debouncer.DebounceType.kFalling);
+  private boolean motorDisconnectedAlertActive = false;
+  private boolean followerDisconnectedAlertActive = false;
 
-    // Goal velocity (rad/s)
-    private double goalVelocity = 0.0;
+  private static final LoggedTunableNumber torqueCurrentControlTolerance =
+      new LoggedTunableNumber("Flywheel/TorqueCurrentControlTolerance", 20.0);
+  private static final LoggedTunableNumber torqueCurrentControlDebounceTime =
+      new LoggedTunableNumber("Flywheel/TorqueCurrentControlDebounce", 0.025);
+  private static final LoggedTunableNumber atGoalDebounceTime =
+      new LoggedTunableNumber("Flywheel/AtGoalDebounce", 0.2);
 
-    // State tracking
-    private int consecutiveLoopsAtGoal = 0;
-    private static final int LOOPS_AT_GOAL_REQUIRED = 10; // 200ms at 50Hz
+  private Debouncer torqueCurrentDebouncer =
+      new Debouncer(torqueCurrentControlDebounceTime.get(), DebounceType.kFalling);
+  private Debouncer atGoalDebouncer = new Debouncer(atGoalDebounceTime.get(), DebounceType.kFalling);
+  private boolean lastTorqueCurrentControl = false;
+  private long launchCount = 0;
 
-    /**
-     * Creates a new Flywheel subsystem.
-     *
-     * @param io The IO implementation to use
-     */
-    public Flywheel(FlywheelIO io) {
-        this.io = io;
+  private boolean atGoal = false;
+
+  public Flywheel(String name, FlywheelIO io) {
+    this.name = name;
+    this.io = io;
+  }
+
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs(name, inputs);
+
+    // Update debouncers if tunable numbers changed
+    if (torqueCurrentControlDebounceTime.hasChanged(hashCode())) {
+      torqueCurrentDebouncer =
+          new Debouncer(torqueCurrentControlDebounceTime.get(), DebounceType.kFalling);
+    }
+    if (atGoalDebounceTime.hasChanged(hashCode())) {
+      atGoalDebouncer = new Debouncer(atGoalDebounceTime.get(), DebounceType.kFalling);
     }
 
-    @Override
-    public void periodic() {
-        // Update inputs from hardware
-        io.updateInputs(inputs);
+    // Motor disconnection alerts
+    boolean motorDisconnected = !motorConnectedDebouncer.calculate(inputs.connected);
+    boolean followerDisconnected =
+        !motorFollowerConnectedDebouncer.calculate(inputs.followerConnected);
 
-        // Determine control mode based on velocity error
-        double velocityError = Math.abs(goalVelocity - inputs.velocityRadPerSec);
-
-        if (goalVelocity == 0.0) {
-            // Coast to stop
-            outputs.mode = FlywheelIO.FlywheelIOOutputMode.COAST;
-        } else if (velocityError > ShooterConstants.Flywheel.VELOCITY_TOLERANCE) {
-            // Far from setpoint - use duty cycle for fast ramp
-            outputs.mode = FlywheelIO.FlywheelIOOutputMode.DUTY_CYCLE_BANG_BANG;
-        } else {
-            // Near setpoint - use torque current for precision
-            outputs.mode = FlywheelIO.FlywheelIOOutputMode.TORQUE_CURRENT_BANG_BANG;
-        }
-
-        outputs.velocityRadPerSec = goalVelocity;
-
-        // Apply outputs to hardware
-        io.applyOutputs(outputs);
-
-        // Track "at goal" status
-        if (velocityError <= ShooterConstants.Flywheel.VELOCITY_TOLERANCE && goalVelocity != 0.0) {
-            consecutiveLoopsAtGoal++;
-        } else {
-            consecutiveLoopsAtGoal = 0;
-        }
-
-        // Telemetry
-        updateTelemetry();
+    if (Robot.showHardwareAlerts() && motorDisconnected && !motorDisconnectedAlertActive) {
+      System.err.println("WARNING: Flywheel motor disconnected!");
+      motorDisconnectedAlertActive = true;
+    } else if (!motorDisconnected) {
+      motorDisconnectedAlertActive = false;
     }
 
-    /**
-     * Sets the target flywheel velocity.
-     *
-     * @param velocityRadPerSec Target velocity in radians per second
-     */
-    public void setVelocity(double velocityRadPerSec) {
-        this.goalVelocity = velocityRadPerSec;
+    if (Robot.showHardwareAlerts() && followerDisconnected && !followerDisconnectedAlertActive) {
+      System.err.println("WARNING: Flywheel follower motor disconnected!");
+      followerDisconnectedAlertActive = true;
+    } else if (!followerDisconnected) {
+      followerDisconnectedAlertActive = false;
     }
+  }
 
-    /**
-     * Gets the current measured velocity.
-     *
-     * @return Current velocity in radians per second
-     */
-    public double getVelocity() {
-        return inputs.velocityRadPerSec;
+  @Override
+  public void periodicAfterScheduler() {
+    Logger.recordOutput(name + "/Mode", outputs.mode);
+    io.applyOutputs(outputs);
+  }
+
+  /** Run closed loop at the specified velocity. */
+  private void runVelocity(double velocityRadsPerSec) {
+    boolean inTolerance =
+        Math.abs(inputs.velocityRadsPerSec - velocityRadsPerSec)
+            <= torqueCurrentControlTolerance.get();
+    boolean torqueCurrentControl = torqueCurrentDebouncer.calculate(inTolerance);
+    atGoal = atGoalDebouncer.calculate(inTolerance);
+
+    if (!torqueCurrentControl && lastTorqueCurrentControl) {
+      launchCount++;
     }
+    lastTorqueCurrentControl = torqueCurrentControl;
 
-    /**
-     * Checks if flywheel is at goal velocity.
-     *
-     * @return True if velocity is within tolerance for required duration
-     */
-    public boolean atGoal() {
-        return consecutiveLoopsAtGoal >= LOOPS_AT_GOAL_REQUIRED;
-    }
+    outputs.mode =
+        torqueCurrentControl
+            ? FlywheelIOOutputMode.TORQUE_CURRENT_BANG_BANG
+            : FlywheelIOOutputMode.DUTY_CYCLE_BANG_BANG;
+    outputs.velocityRadsPerSec = velocityRadsPerSec;
+    Logger.recordOutput(name + "/Setpoint", velocityRadsPerSec);
+  }
 
-    /**
-     * Stops the flywheel.
-     */
-    public void stop() {
-        setVelocity(0.0);
-    }
+  /** Stops the flywheel. */
+  private void stop() {
+    outputs.mode = FlywheelIOOutputMode.COAST;
+    outputs.velocityRadsPerSec = 0.0;
+    atGoal = false;
+  }
 
-    /**
-     * Creates a command to run the flywheel at a fixed velocity.
-     *
-     * @param velocityRadPerSec Target velocity in radians per second
-     * @return Command that runs the flywheel
-     */
-    public Command runVelocityCommand(double velocityRadPerSec) {
-        return run(() -> setVelocity(velocityRadPerSec))
-                .withName("Flywheel: " + Math.round(velocityRadPerSec) + " rad/s");
-    }
+  /** Returns the current velocity in rad/s. */
+  public double getVelocity() {
+    return inputs.velocityRadsPerSec;
+  }
 
-    /**
-     * Creates a command to stop the flywheel.
-     *
-     * @return Command that stops the flywheel
-     */
-    public Command stopCommand() {
-        return runOnce(this::stop).withName("Flywheel: Stop");
-    }
+  public boolean atGoal() {
+    return atGoal;
+  }
 
-    /**
-     * Creates a command to run at idle velocity.
-     *
-     * @return Command that idles the flywheel
-     */
-    public Command idleCommand() {
-        return runVelocityCommand(ShooterConstants.Flywheel.IDLE_VELOCITY);
-    }
+  public Command runTrackTargetCommand() {
+    return runEnd(
+        () -> runVelocity(LaunchCalculator.getInstance().getParameters().flywheelSpeed()),
+        this::stop);
+  }
 
-    /**
-     * Updates telemetry to SmartDashboard.
-     */
-    private void updateTelemetry() {
-        SmartDashboard.putNumber("Flywheel/Goal Velocity (rad/s)", goalVelocity);
-        SmartDashboard.putNumber("Flywheel/Measured Velocity (rad/s)", inputs.velocityRadPerSec);
-        SmartDashboard.putNumber("Flywheel/Velocity Error (rad/s)",
-                Math.abs(goalVelocity - inputs.velocityRadPerSec));
-        SmartDashboard.putBoolean("Flywheel/At Goal", atGoal());
-        SmartDashboard.putString("Flywheel/Control Mode", outputs.mode.toString());
+  public Command runFixedCommand(DoubleSupplier velocity) {
+    return runEnd(() -> runVelocity(velocity.getAsDouble()), this::stop);
+  }
 
-        SmartDashboard.putNumber("Flywheel/Current (A)", inputs.supplyCurrentAmps);
-        SmartDashboard.putNumber("Flywheel/Temp (C)", inputs.tempCelsius);
-        SmartDashboard.putBoolean("Flywheel/Connected", inputs.connected);
+  public Command stopCommand() {
+    return runOnce(this::stop);
+  }
 
-        // Convert rad/s to RPM for easier interpretation
-        double rpm = inputs.velocityRadPerSec * 60.0 / (2.0 * Math.PI);
-        double goalRpm = goalVelocity * 60.0 / (2.0 * Math.PI);
-        SmartDashboard.putNumber("Flywheel/RPM", rpm);
-        SmartDashboard.putNumber("Flywheel/Goal RPM", goalRpm);
-    }
+  // Helper methods for backward compatibility
+  public void setVelocity(double velocityRadsPerSec) {
+    runVelocity(velocityRadsPerSec);
+  }
+
+  public Command runVelocityCommand(double velocityRadsPerSec) {
+    return runEnd(() -> runVelocity(velocityRadsPerSec), this::stop)
+        .withName("Flywheel: " + Math.round(velocityRadsPerSec) + " rad/s");
+  }
 }

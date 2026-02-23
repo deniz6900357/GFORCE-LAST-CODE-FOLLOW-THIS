@@ -1,61 +1,45 @@
+// Copyright (c) 2025-2026 Littleton Robotics
+// http://github.com/Mechanical-Advantage
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file at
+// the root directory of this project.
+
 package frc.robot.subsystems.shooter.hood;
 
-/**
- * Hardware abstraction interface for the shooter hood subsystem.
- *
- * <p>Based on Mechanical Advantage Team 6328's architecture.
- * This interface allows swapping between real hardware and simulation.
- */
+import org.littletonrobotics.junction.AutoLog;
+
 public interface HoodIO {
 
-    /**
-     * Input data from the hood motor.
-     */
-    public static class HoodIOInputs {
-        public boolean motorConnected = false;
-        public double positionRad = 0.0;
-        public double velocityRadPerSec = 0.0;
-        public double appliedVolts = 0.0;
-        public double supplyCurrentAmps = 0.0;
-        public double tempCelsius = 0.0;
-    }
+  @AutoLog
+  public static class HoodIOInputs {
+    // TODO: add encoder
+    public boolean motorConnected = false;
+    public double positionRads = 0.0;
+    public double velocityRadsPerSec = 0.0;
+    public double appliedVolts = 0.0;
+    public double supplyCurrentAmps = 0.0;
+    public double torqueCurrentAmps = 0.0;
+    public double tempCelsius = 0.0;
+  }
 
-    /**
-     * Output control modes for the hood.
-     */
-    public enum HoodIOOutputMode {
-        /** Motor brakes to hold position */
-        BRAKE,
+  public static enum HoodIOOutputMode {
+    BRAKE,
+    COAST,
+    CLOSED_LOOP
+  }
 
-        /** Motor coasts (no brake, no drive) */
-        COAST,
+  public static class HoodIOOutputs {
 
-        /** Closed-loop position control */
-        CLOSED_LOOP
-    }
+    public HoodIOOutputMode mode = HoodIOOutputMode.BRAKE;
+    // Closed loop control
+    public double positionRad = 0.0;
+    public double velocityRadsPerSec = 0.0;
+    public double kP = 0.0;
+    public double kD = 0.0;
+  }
 
-    /**
-     * Output commands to the hood motor.
-     */
-    public static class HoodIOOutputs {
-        public HoodIOOutputMode mode = HoodIOOutputMode.BRAKE;
-        public double positionRad = 0.0;
-        public double velocityRadPerSec = 0.0;
-        public double kP = 0.0;
-        public double kD = 0.0;
-    }
+  public default void updateInputs(HoodIOInputs inputs) {}
 
-    /**
-     * Updates the input data from hardware.
-     *
-     * @param inputs The input object to populate with current sensor data
-     */
-    default void updateInputs(HoodIOInputs inputs) {}
-
-    /**
-     * Applies the output commands to hardware.
-     *
-     * @param outputs The output commands to apply
-     */
-    default void applyOutputs(HoodIOOutputs outputs) {}
+  public default void applyOutputs(HoodIOOutputs outputs) {}
 }

@@ -1,3 +1,10 @@
+// Copyright (c) 2025-2026 Littleton Robotics
+// http://github.com/Mechanical-Advantage
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file at
+// the root directory of this project.
+
 package frc.robot.subsystems.shooter.hood;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
@@ -7,21 +14,21 @@ import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-
+import edu.wpi.first.math.util.Units;
 import frc.robot.subsystems.shooter.ShooterConstants;
 
 /**
  * Real hardware implementation of HoodIO using CTRE Kraken X44 motor.
  *
- * <p>Based on Mechanical Advantage Team 6328's architecture.
- * Uses Phoenix 6 Motion Magic for smooth position control.
+ * <p>Uses Phoenix 6 Motion Magic for smooth position control with onboard PID.
+ * Motion Magic handles acceleration, cruise velocity, and jerk limiting automatically.
  */
 public class HoodIOReal implements HoodIO {
 
     private final TalonFX motor;
 
     // Control requests
-    private final MotionMagicVoltage positionRequest = new MotionMagicVoltage(0.0);
+    private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0.0);
     private final NeutralOut neutralRequest = new NeutralOut();
 
     /**
@@ -43,20 +50,21 @@ public class HoodIOReal implements HoodIO {
                 ? InvertedValue.Clockwise_Positive
                 : InvertedValue.CounterClockwise_Positive;
 
-        // Motion Magic configuration for smooth motion
-        config.MotionMagic.MotionMagicCruiseVelocity = 80.0; // rot/s
-        config.MotionMagic.MotionMagicAcceleration = 160.0;  // rot/s^2
-        config.MotionMagic.MotionMagicJerk = 1600.0;         // rot/s^3
-
-        // Position PID gains (will be overridden by outputs, but set defaults)
-        config.Slot0.kP = ShooterConstants.Hood.KP;
-        config.Slot0.kI = ShooterConstants.Hood.KI;
-        config.Slot0.kD = ShooterConstants.Hood.KD;
-        config.Slot0.GravityType = GravityTypeValue.Arm_Cosine;
-        config.Slot0.kG = 0.0; // Tune this for gravity compensation
-
-        // Feedback sensor configuration
+        // Feedback sensor configuration - CRITICAL for gear ratio!
         config.Feedback.SensorToMechanismRatio = ShooterConstants.Hood.GEAR_RATIO;
+
+        // Motion Magic configuration - Smooth and responsive
+        config.MotionMagic.MotionMagicCruiseVelocity = 80.0;  // rot/s (mechanism rotations)
+        config.MotionMagic.MotionMagicAcceleration = 160.0;   // rot/s²
+        config.MotionMagic.MotionMagicJerk = 1600.0;          // rot/s³
+
+        // Position PID gains - Will be updated from Hood.java via outputs
+        // These are initial values, real values come from LoggedTunableNumber
+        config.Slot0.kP = 100.0;
+        config.Slot0.kI = 0.0;
+        config.Slot0.kD = 5.0;
+        config.Slot0.GravityType = GravityTypeValue.Arm_Cosine;
+        config.Slot0.kG = 0.2;  // Gravity compensation for arm mechanism
 
         motor.getConfigurator().apply(config);
 
@@ -67,10 +75,11 @@ public class HoodIOReal implements HoodIO {
     @Override
     public void updateInputs(HoodIOInputs inputs) {
         inputs.motorConnected = motor.isAlive();
-        inputs.positionRad = motor.getPosition().getValueAsDouble() * 2.0 * Math.PI;
-        inputs.velocityRadPerSec = motor.getVelocity().getValueAsDouble() * 2.0 * Math.PI;
+        inputs.positionRads = Units.rotationsToRadians(motor.getPosition().getValueAsDouble());
+        inputs.velocityRadsPerSec = Units.rotationsToRadians(motor.getVelocity().getValueAsDouble());
         inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
         inputs.supplyCurrentAmps = motor.getSupplyCurrent().getValueAsDouble();
+        inputs.torqueCurrentAmps = motor.getTorqueCurrent().getValueAsDouble();
         inputs.tempCelsius = motor.getDeviceTemp().getValueAsDouble();
     }
 
@@ -83,12 +92,12 @@ public class HoodIOReal implements HoodIO {
                 break;
 
             case CLOSED_LOOP:
-                // Convert radians to rotations for motor
-                double positionRotations = outputs.positionRad / (2.0 * Math.PI);
+                // Convert radians to rotations for Motion Magic
+                double targetPositionRotations = Units.radiansToRotations(outputs.positionRad);
 
                 // Use Motion Magic for smooth position control
-                // Feed-forward velocity is handled by Motion Magic internally
-                motor.setControl(positionRequest.withPosition(positionRotations));
+                // Motion Magic automatically handles acceleration, cruise velocity, and jerk
+                motor.setControl(motionMagicRequest.withPosition(targetPositionRotations));
                 break;
         }
     }

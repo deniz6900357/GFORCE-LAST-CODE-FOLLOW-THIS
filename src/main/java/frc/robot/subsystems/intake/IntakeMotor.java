@@ -20,7 +20,7 @@ import frc.robot.RobotConstants.PortConstants.CAN;
 @Logged
 public class IntakeMotor extends SubsystemBase {
     private static final int MOTOR_CAN_ID = 31; // Intake motor CAN ID
-    private static final double INTAKE_SPEED = 0.1; // 10% speed for intake
+    private static final double INTAKE_SPEED = 0.3; // 30% speed for intake
     private static final int CURRENT_LIMIT_AMPS = 60; // Kraken X60 safe limit
 
     private final TalonFX intakeMotor;
@@ -65,21 +65,29 @@ public class IntakeMotor extends SubsystemBase {
 
     /**
      * Creates a command to run intake at default speed.
+     * Automatically stops when command ends.
      *
      * @return Command that runs intake motor
      */
     public Command intakeCommand() {
-        return run(() -> setSpeed(INTAKE_SPEED)).withName("Intake: Run");
+        return startEnd(
+            () -> setSpeed(INTAKE_SPEED),
+            this::stop
+        ).withName("Intake: Run");
     }
 
     /**
      * Creates a command to run intake at custom speed.
+     * Automatically stops when command ends.
      *
      * @param speed Motor speed percentage (-1.0 to 1.0)
      * @return Command that runs intake at specified speed
      */
     public Command intakeCommand(double speed) {
-        return run(() -> setSpeed(speed)).withName("Intake: " + (int)(speed * 100) + "%");
+        return startEnd(
+            () -> setSpeed(speed),
+            this::stop
+        ).withName("Intake: " + (int)(speed * 100) + "%");
     }
 
     /**

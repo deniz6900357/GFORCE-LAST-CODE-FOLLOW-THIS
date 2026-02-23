@@ -32,6 +32,7 @@ import edu.wpi.first.wpilibj2.command.Subsystem;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 
 import frc.robot.LimelightHelpers;
+import frc.robot.RobotState;
 import frc.robot.generated.TunerConstants.TunerSwerveDrivetrain;
 
 /**
@@ -261,6 +262,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         updateVisionMeasurements();
         SmartDashboard.putBoolean("Vision/Enabled", true);
 
+        // Update RobotState for LaunchCalculator (CRITICAL for shooter aiming!)
+        RobotState.getInstance().updatePose(getState().Pose);
+        RobotState.getInstance().updateRobotVelocity(getState().Speeds);
+
         // Debug: Log gyro yaw to SmartDashboard for troubleshooting
         SmartDashboard.putNumber("Drivetrain/Gyro Yaw (degrees)", getState().Pose.getRotation().getDegrees());
         SmartDashboard.putNumber("Drivetrain/Pose X (m)", getState().Pose.getX());
@@ -281,101 +286,84 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      * <p>This fuses vision data with wheel odometry using WPILib's Kalman filter.
      * Vision measurements retroactively correct odometry drift with timestamp-based fusion.
      */
+    // Only use these specific AprilTags for pose estimation
+    private static final int[] VALID_TAG_IDS = {15, 16, 31, 32};
+    private boolean visionFiltersApplied = false;
+
+    // Dual Limelight names
+    private static final String LL_SHOOTER = "limelight";    // Limelight 3 - shooter üstünde
+    private static final String LL_RIGHT_FRONT = "limelight3a"; // Limelight 3A - sağ önde
+
     private void updateVisionMeasurements() {
-        // Tell Limelight the robot's current orientation for better pose estimation
-        LimelightHelpers.SetRobotOrientation("limelight", getState().Pose.getRotation().getDegrees(), 0, 0, 0, 0, 0);
-
-        // Get MegaTag2 pose estimate from Limelight based on alliance
-        // MegaTag2 uses multiple tags for more accurate pose estimation
-        Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
-        SmartDashboard.putString("Vision/CurrentAlliance", currentAlliance.toString());
-
-        // Always use wpiBlue coordinate system for pose estimation
-        LimelightHelpers.PoseEstimate poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2("limelight");
-        SmartDashboard.putString("Vision/UsingPoseMethod", "wpiBlue_MegaTag2");
-        SmartDashboard.putString("Vision/CoordinateSystem", "Always wpiBlue (Red alliance uses blue coords)");
-
-        // Telemetry: Vision data availability and quality metrics
-        SmartDashboard.putBoolean("Vision/HasValidData", poseEstimate != null && poseEstimate.tagCount > 0);
-        if (poseEstimate != null) {
-            SmartDashboard.putNumber("Vision/TagCount", poseEstimate.tagCount);
-            SmartDashboard.putNumber("Vision/AvgTagDist (m)", poseEstimate.avgTagDist);
-            SmartDashboard.putNumber("Vision/TagSpan (m)", poseEstimate.tagSpan);
-            SmartDashboard.putNumber("Vision/Latency (ms)", poseEstimate.latency);
-            SmartDashboard.putNumber("Vision/PoseX", poseEstimate.pose.getX());
-            SmartDashboard.putNumber("Vision/PoseY", poseEstimate.pose.getY());
-            SmartDashboard.putNumber("Vision/PoseRotation", poseEstimate.pose.getRotation().getDegrees());
+        // Apply tag filters once to BOTH Limelights
+        if (!visionFiltersApplied) {
+            LimelightHelpers.SetFiducialIDFiltersOverride(LL_SHOOTER, VALID_TAG_IDS);
+            LimelightHelpers.SetFiducialIDFiltersOverride(LL_RIGHT_FRONT, VALID_TAG_IDS);
+            visionFiltersApplied = true;
+            System.out.println("Vision: Tag filters applied to BOTH Limelights - only using tags 15, 16, 31, 32");
         }
 
-        // Only use vision data if we have valid tag data
+        // Send robot orientation to BOTH Limelights for MegaTag2
+        double gyroYaw = getState().Pose.getRotation().getDegrees();
+        LimelightHelpers.SetRobotOrientation(LL_SHOOTER, gyroYaw, 0, 0, 0, 0, 0);
+        LimelightHelpers.SetRobotOrientation(LL_RIGHT_FRONT, gyroYaw, 0, 0, 0, 0, 0);
+
+        // Process both Limelights
+        processLimelightPose(LL_SHOOTER, "Vision/Shooter");
+        processLimelightPose(LL_RIGHT_FRONT, "Vision/RightFront");
+    }
+
+    /**
+     * Processes MegaTag2 pose estimate from a single Limelight and fuses it into odometry.
+     *
+     * @param limelightName The Limelight NetworkTables name
+     * @param dashboardPrefix SmartDashboard key prefix for telemetry
+     */
+    private void processLimelightPose(String limelightName, String dashboardPrefix) {
+        LimelightHelpers.PoseEstimate poseEstimate =
+            LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(limelightName);
+
+        // Telemetry
+        SmartDashboard.putBoolean(dashboardPrefix + "/HasValidData",
+            poseEstimate != null && poseEstimate.tagCount > 0);
+
+        if (poseEstimate != null) {
+            SmartDashboard.putNumber(dashboardPrefix + "/TagCount", poseEstimate.tagCount);
+            SmartDashboard.putNumber(dashboardPrefix + "/AvgTagDist", poseEstimate.avgTagDist);
+            SmartDashboard.putNumber(dashboardPrefix + "/PoseX", poseEstimate.pose.getX());
+            SmartDashboard.putNumber(dashboardPrefix + "/PoseY", poseEstimate.pose.getY());
+        }
+
         if (poseEstimate != null && poseEstimate.tagCount > 0) {
-            // Get current odometry pose for comparison
-            Pose2d currentPose = getState().Pose;
+            // Adaptive standard deviation (MA 6328 strategy)
+            double xyStdDev = 0.1;
+            double thetaStdDev = 2.0;
 
-            // Calculate distance between vision pose and current odometry pose
-            double poseDifference = currentPose.getTranslation().getDistance(poseEstimate.pose.getTranslation());
-            double rotationDifference = Math.abs(
-                currentPose.getRotation().minus(poseEstimate.pose.getRotation()).getDegrees()
-            );
-
-            // Debug: Show pose difference
-            SmartDashboard.putNumber("Vision/PoseDifference (m)", poseDifference);
-            SmartDashboard.putNumber("Vision/RotationDifference (deg)", rotationDifference);
-
-            // ========== MECHANICAL ADVANTAGE 6328 VISION VALIDATION ALGORITHM ==========
-            // Strategy: Aggressive vision trust with adaptive standard deviation
-            // No hard rejection limits - MegaTag2 provides inherent validation
-
-            // Calculate vision measurement standard deviation based on:
-            // 1. Distance to tags (farther = less accurate)
-            // 2. Number of tags (more tags = more accurate)
-            // Lower std dev = MORE trust in vision (stronger correction)
-            // Higher std dev = LESS trust in vision (weaker correction)
-
-            // Base standard deviations - AGGRESSIVE trust in vision
-            double xyStdDev = 0.1;      // XY position: Very low = MAXIMUM trust
-            double thetaStdDev = 2.0;   // Rotation: Low = High trust
-
-            double avgTagDistance = poseEstimate.avgTagDist;
-
-            // Distance-based adjustment: Reduce trust at far distances (>4m)
-            if (avgTagDistance > 4.0) {
-                xyStdDev *= 1.5;        // Slightly reduce trust
+            if (poseEstimate.avgTagDist > 4.0) {
+                xyStdDev *= 1.5;
                 thetaStdDev *= 1.5;
             }
 
-            // Multiple tag bonus: MAXIMUM trust with 2+ tags
             if (poseEstimate.tagCount >= 2) {
-                xyStdDev *= 0.5;        // Double the trust (half the std dev)
+                xyStdDev *= 0.5;
                 thetaStdDev *= 0.5;
             }
 
-            // Final std devs used:
-            // - Single tag, close (<4m): XY=0.1m, Theta=2.0°
-            // - Single tag, far (>4m):   XY=0.15m, Theta=3.0°
-            // - Multi tag, close:        XY=0.05m, Theta=1.0° (MAXIMUM TRUST)
-            // - Multi tag, far:          XY=0.075m, Theta=1.5°
+            SmartDashboard.putNumber(dashboardPrefix + "/XYStdDev", xyStdDev);
+            SmartDashboard.putBoolean(dashboardPrefix + "/Accepted", true);
 
-            SmartDashboard.putNumber("Vision/XYStdDev", xyStdDev);
-            SmartDashboard.putNumber("Vision/ThetaStdDev", thetaStdDev);
-            SmartDashboard.putBoolean("Vision/MeasurementRejected", false); // No rejection in MA strategy
-
-            // Create standard deviation matrix [x, y, theta]
             var visionStdDevs = new Matrix<>(N3.instance, N1.instance);
             visionStdDevs.set(0, 0, xyStdDev);
             visionStdDevs.set(1, 0, xyStdDev);
             visionStdDevs.set(2, 0, Math.toRadians(thetaStdDev));
 
-            // Add vision measurement to pose estimator with timestamp and std devs
             addVisionMeasurement(
                 poseEstimate.pose,
                 poseEstimate.timestampSeconds,
                 visionStdDevs
             );
-
-            SmartDashboard.putBoolean("Vision/MeasurementAccepted", true);
         } else {
-            SmartDashboard.putBoolean("Vision/MeasurementAccepted", false);
+            SmartDashboard.putBoolean(dashboardPrefix + "/Accepted", false);
         }
     }
 

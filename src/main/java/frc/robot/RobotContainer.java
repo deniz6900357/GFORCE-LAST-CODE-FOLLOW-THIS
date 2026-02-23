@@ -22,20 +22,22 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj.GenericHID;
 
+import frc.robot.automation.AutoAlign;
 import frc.robot.automation.AutoTrench;
 import frc.robot.commands.AimToHubCommand;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.intake.IntakeMotor;
 import frc.robot.subsystems.shooter.flywheel.Flywheel;
+import frc.robot.subsystems.shooter.flywheel.FlywheelIO;
 import frc.robot.subsystems.shooter.flywheel.FlywheelIOReal;
 import frc.robot.subsystems.shooter.hood.Hood;
-import frc.robot.subsystems.shooter.hood.HoodIOSim;
+import frc.robot.subsystems.shooter.hood.HoodIO;
+import frc.robot.subsystems.shooter.hood.HoodIOReal;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIOReal;
 import frc.robot.subsystems.feeder.FeederIOSim;
 import frc.robot.subsystems.partimodu.LED;
-import frc.robot.subsystems.shooter.Shooter;
 import edu.wpi.first.wpilibj.RobotBase;
 
 public class RobotContainer {
@@ -62,8 +64,11 @@ public class RobotContainer {
     private final IntakeMotor intakeMotor = new IntakeMotor();
 
     // Shooter subsystems (MA architecture - separate subsystems)
-    private final Flywheel flywheel = new Flywheel(new FlywheelIOReal());
-    private final Hood hood = new Hood(new HoodIOSim()); // Hood hardware not connected - using simulation
+    // NOTE: Simulation implementations removed - only real hardware supported
+    private final Flywheel flywheel = new Flywheel("Flywheel",
+        RobotBase.isReal() ? new FlywheelIOReal() : new FlywheelIO() {});
+    private final Hood hood = new Hood(
+        RobotBase.isReal() ? new HoodIOReal() : new HoodIO() {}); // Hood motor: Kraken X44 (ID 34) on CANivore
 
     // Feeder subsystem (NEO motor with 27:1 reduction)
     // Use sim implementation in simulation mode to avoid REVLib driver dependency
@@ -88,6 +93,11 @@ public class RobotContainer {
         // Put the auto chooser on the dashboard
         SmartDashboard.putData("Auto Chooser", autoChooser);
 
+        // REMOVED: Default commands for Hood/Flywheel (safety issue - motors spinning on boot)
+        // Hood ve Flywheel sadece manuel olarak B tuşu ile çalıştırılır
+
+        System.out.println("✅ RobotContainer initialized - No default commands for shooter!");
+
         // Note: Initial pose will be set in teleopInit() when alliance is available
     }
 
@@ -101,15 +111,25 @@ public class RobotContainer {
         // Red: Near red hub (X: 11.9m, Y: 2.35m), facing blue wall (180°)
         var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
                 .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
+
+        // Gyro'nun mevcut yönünü al
+        Rotation2d currentRotation = drivetrain.getState().Pose.getRotation();
+
         Pose2d startPose;
         if (alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
-            startPose = new Pose2d(4.6, 2.35, Rotation2d.kZero);
+            // Blue alliance: Mevcut rotasyonu koru (gyro'yu bozmadan)
+            startPose = new Pose2d(4.6, 2.35, currentRotation);
             System.out.println("Blue Alliance - Robot initialized at position: " + startPose);
         } else {
-            startPose = new Pose2d(11.9, 2.35, Rotation2d.fromDegrees(180));
-            System.out.println("Red Alliance - Robot initialized at position (facing blue wall): " + startPose);
+            // Red alliance: Mevcut rotasyonu koru
+            startPose = new Pose2d(11.9, 2.35, currentRotation);
+            System.out.println("Red Alliance - Robot initialized at position: " + startPose);
         }
         drivetrain.resetPose(startPose);
+
+        // Field-centric direction'ı alliance'a göre ayarla (operator perspective)
+        // Bu sadece joystick input'larının referans frame'ini değiştirir, gyro'yu etkilemez
+        System.out.println("✅ Initial pose set. Gyro preserved at: " + currentRotation.getDegrees() + "°");
     }
 
     /**
@@ -153,14 +173,15 @@ public class RobotContainer {
         RobotModeTriggers.disabled().whileTrue(
                 drivetrain.applyRequest(() -> idle).ignoringDisable(true));
 
-        joystick.b().whileTrue(drivetrain.applyRequest(
+        // POV Left: Point wheels (eski B tuşu)
+        joystick.povLeft().whileTrue(drivetrain.applyRequest(
                 () -> point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))));
 
         // Right Bumper (RB - Button 8): AutoTrench Sağ Geçit
         // Blue: Alt geçit (Y: 0.65), Red: Üst geçit (Y: 7.45, mirrored)
         // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
-        // Basılı tuttuğun sürece çalışır, bıraktığında durur
-        joystick.button(8).whileTrue(
+        // BASILI TUTUNCA: Çalışır, bırakınca durur (onTrue başlatır, onFalse iptal eder)
+        joystick.button(8).onTrue(
             Commands.runOnce(() -> {
                 System.out.println("⚡ RB TUŞUNA BASILDI (Button 8) - AutoTrench SAĞ tetikleniyor...");
                 SmartDashboard.putBoolean("AutoTrench/RightRunning", true);
@@ -172,11 +193,21 @@ public class RobotContainer {
             })
         );
 
+        // RB bırakıldığında: Drivetrain'in şu anki komutunu iptal et (AutoTrench durur)
+        joystick.button(8).onFalse(
+            Commands.runOnce(() -> {
+                System.out.println("🛑 RB BIRAKILDI - Drivetrain komutları iptal ediliyor...");
+                if (drivetrain.getCurrentCommand() != null) {
+                    drivetrain.getCurrentCommand().cancel();
+                }
+            })
+        );
+
         // Left Bumper (LB - Button 7): AutoTrench Sol Geçit
         // Blue: Üst geçit (Y: 7.45), Red: Alt geçit (Y: 0.65, mirrored)
         // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
-        // Basılı tuttuğun sürece çalışır, bıraktığında durur
-        joystick.button(7).whileTrue(
+        // BASILI TUTUNCA: Çalışır, bırakınca durur (onTrue başlatır, onFalse iptal eder)
+        joystick.button(7).onTrue(
             Commands.runOnce(() -> {
                 System.out.println("⚡ LB TUŞUNA BASILDI (Button 7) - AutoTrench SOL tetikleniyor...");
                 SmartDashboard.putBoolean("AutoTrench/LeftRunning", true);
@@ -188,8 +219,18 @@ public class RobotContainer {
             })
         );
 
-        // A button: Predictive Aim + Shoot - Hub'a dön + Shooter predictive aiming ile çalışır
-        // Robot hareket halindeyken bile doğru aim ve hood açısı ayarlanır
+        // LB bırakıldığında: Drivetrain'in şu anki komutunu iptal et (AutoTrench durur)
+        joystick.button(7).onFalse(
+            Commands.runOnce(() -> {
+                System.out.println("🛑 LB BIRAKILDI - Drivetrain komutları iptal ediliyor...");
+                if (drivetrain.getCurrentCommand() != null) {
+                    drivetrain.getCurrentCommand().cancel();
+                }
+            })
+        );
+
+        // A button: Auto-aim + Hood tracking (Hub'a döner VE hood açısı ayarlanır)
+        // Basılı tuttuğun sürece: Hub'a döner VE hood açısı ayarlanır (PARALEL)
         final AimToHubCommand aimCommand = new AimToHubCommand(
             drivetrain,
             joystick::getLeftY,
@@ -200,25 +241,40 @@ public class RobotContainer {
 
         joystick.a().whileTrue(
             Commands.parallel(
-                // Hub'a predictive aiming ile dön
                 aimCommand,
-
-                // Shooter: Predictive hood açısı ve flywheel hızı
-                Shooter.runPredictiveShotCommand(
-                    flywheel,
-                    hood,
-                    () -> {
-                        // AimToHubCommand'in hesapladığı predicted pose'u kullan
-                        Pose2d predicted = aimCommand.getLastPredictedPose();
-                        // İlk iteration'da null olabilir, o zaman mevcut pose'u kullan
-                        return predicted != null ? predicted : drivetrain.getState().Pose;
-                    }
-                )
-            ).withName("Predictive Aim + Shoot")
+                hood.runTrackTargetCommand()
+            ).withName("A: Aim + Hood Track")
         );
 
-        // Hood zero etme (POV sağ) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
+        // B button: Hood only (Predictive shot) - TESTING
+        // Basılı tuttuğun sürece: Hood açısı ayarlanır (Flywheel disabled for testing)
+        joystick.b().whileTrue(
+            hood.runTrackTargetCommand().withName("B: Hood Only (Track Target)")
+        );
+
+        // Hood zero etme (POV sağ veya Start butonu) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
         joystick.povRight().onTrue(hood.zeroCommand());
+        joystick.start().onTrue(hood.zeroCommand());
+
+        // POV Up: Auto-align to tower scoring position (odometry-based)
+        // Y > 3.75 → (1.5, 4.0), Y <= 3.75 → (1.5, 3.4)
+        // Limelight zaten arka planda odometry'yi düzeltiyor
+        joystick.povUp().whileTrue(AutoAlign.alignToTower(drivetrain));
+        joystick.povDown().whileTrue(
+            Commands.parallel(
+                hood.setAngleCommand(Math.toRadians(15.0)),
+                Commands.print("🔽 POV DOWN: Hood 15° (MIN) açıya gidiyor...")
+            ).withName("Hood: Test MIN 15°")
+        );
+
+        // X tuşu: Gyro reset - Robot'un mevcut yönünü 0° olarak ayarla
+        joystick.x().onTrue(
+            Commands.runOnce(() -> {
+                // Gyro'yu 0° olarak ayarla (forward = 0°)
+                drivetrain.seedFieldCentric(new Rotation2d());
+                System.out.println("🧭 GYRO RESET! Yeni yön: 0°");
+            }).ignoringDisable(true)
+        );
 
         // RT (sağ trigger): Feeder - basılı tut, feeder çalışır; bırak, feeder durur
         joystick.rightTrigger().whileTrue(
@@ -236,10 +292,7 @@ public class RobotContainer {
         // durur
         joystick.leftTrigger().whileTrue(
                 Commands.parallel(
-                        Commands.startEnd(
-                                () -> intakeMotor.setSpeed(0.1),
-                                intakeMotor::stop,
-                                intakeMotor),
+                        intakeMotor.intakeCommand(), // Uses INTAKE_SPEED constant (30%)
                         ledSubsystem.run(ledSubsystem::setBlinkWhite).withName("LED: Blink White") // Intake tuşuna
                                                                                                    // basılıyken Beyaz
                                                                                                    // Yanıp Sönme
