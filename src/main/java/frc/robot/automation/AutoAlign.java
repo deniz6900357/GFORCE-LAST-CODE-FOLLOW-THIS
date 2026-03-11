@@ -6,6 +6,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.util.AllianceFlipUtil;
 
 /**
  * AutoAlign - Automated tower scoring position alignment.
@@ -44,11 +45,11 @@ public class AutoAlign {
             Pose2d targetPose;
 
             if (robotY > Y_THRESHOLD) {
-                targetPose = UPPER_SCORING_POSE;
-                System.out.println("AutoAlign: Y > " + Y_THRESHOLD + " → Upper lane (1.5, 4.0)");
+                targetPose = AllianceFlipUtil.apply(UPPER_SCORING_POSE);
+                System.out.println("AutoAlign: Upper lane → " + targetPose);
             } else {
-                targetPose = LOWER_SCORING_POSE;
-                System.out.println("AutoAlign: Y <= " + Y_THRESHOLD + " → Lower lane (1.5, 3.4)");
+                targetPose = AllianceFlipUtil.apply(LOWER_SCORING_POSE);
+                System.out.println("AutoAlign: Lower lane → " + targetPose);
             }
 
             return AutoTrench.moveToPose(targetPose);

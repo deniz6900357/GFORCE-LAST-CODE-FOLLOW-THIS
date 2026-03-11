@@ -260,16 +260,19 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
         // Update pose estimation with MegaTag2 vision measurements
         updateVisionMeasurements();
-        SmartDashboard.putBoolean("Vision/Enabled", true);
+
+        // Cache state to avoid repeated getState() calls
+        var state = getState();
+        Pose2d currentPose = state.Pose;
 
         // Update RobotState for LaunchCalculator (CRITICAL for shooter aiming!)
-        RobotState.getInstance().updatePose(getState().Pose);
-        RobotState.getInstance().updateRobotVelocity(getState().Speeds);
+        RobotState.getInstance().updatePose(currentPose);
+        RobotState.getInstance().updateRobotVelocity(state.Speeds);
 
-        // Debug: Log gyro yaw to SmartDashboard for troubleshooting
-        SmartDashboard.putNumber("Drivetrain/Gyro Yaw (degrees)", getState().Pose.getRotation().getDegrees());
-        SmartDashboard.putNumber("Drivetrain/Pose X (m)", getState().Pose.getX());
-        SmartDashboard.putNumber("Drivetrain/Pose Y (m)", getState().Pose.getY());
+        // Drivetrain telemetry
+        SmartDashboard.putNumber("Drivetrain/Gyro Yaw (degrees)", currentPose.getRotation().getDegrees());
+        SmartDashboard.putNumber("Drivetrain/Pose X (m)", currentPose.getX());
+        SmartDashboard.putNumber("Drivetrain/Pose Y (m)", currentPose.getY());
     }
 
     /**
@@ -471,10 +474,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                 this::getCurrentRobotChassisSpeeds, // Supplier of current robot-relative chassis speeds
                 (speeds, feedforwards) -> {
                     setControl(new SwerveRequest.ApplyRobotSpeeds().withSpeeds(speeds));
-                    // Debug output
-                    System.out.println("PathPlanner commanding: vX=" + speeds.vxMetersPerSecond +
-                                     " vY=" + speeds.vyMetersPerSecond +
-                                     " omega=" + speeds.omegaRadiansPerSecond);
                 }, // Consumer of ChassisSpeeds to drive the robot
                 new PPHolonomicDriveController(
                     new PIDConstants(5.0, 0.0, 0.0), // Translation PID constants (increased for better tracking)

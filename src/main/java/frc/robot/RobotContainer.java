@@ -276,17 +276,28 @@ public class RobotContainer {
             }).ignoringDisable(true)
         );
 
-        // RT (sağ trigger): Feeder - basılı tut, feeder çalışır; bırak, feeder durur
+        // RT (sağ trigger): AimToHub + Hood + Flywheel → atGoal olunca Feeder çalışır
+        final AimToHubCommand rtAimCommand = new AimToHubCommand(
+            drivetrain,
+            joystick::getLeftY,
+            joystick::getLeftX,
+            MaxSpeed,
+            MaxAngularRate
+        );
+
         joystick.rightTrigger().whileTrue(
-                Commands.parallel(
-                        Commands.startEnd(
-                                feeder::feed,
-                                feeder::stop,
-                                feeder),
-                        ledSubsystem.run(ledSubsystem::setBlinkBlue).withName("LED: Blink Blue") // Atış tuşuna
-                                                                                                 // basılıyken Mavi
-                                                                                                 // Yanıp Sönme
-                ));
+            Commands.parallel(
+                rtAimCommand,
+                hood.runTrackTargetCommand(),
+                flywheel.runTrackTargetCommand(),
+                Commands.waitUntil(flywheel::atGoal)
+                    .andThen(Commands.startEnd(
+                        feeder::feed,
+                        feeder::stop,
+                        feeder)),
+                ledSubsystem.run(ledSubsystem::setBlinkBlue).withName("LED: Blink Blue")
+            ).withName("RT: Aim + Shoot")
+        );
 
         // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor
         // durur
