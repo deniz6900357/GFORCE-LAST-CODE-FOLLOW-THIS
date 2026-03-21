@@ -167,27 +167,16 @@ public class AimToHubCommand extends Command {
         // Get robot pose from drivetrain odometry (fused with vision)
         Pose2d robotPose = drivetrain.getState().Pose;
 
-        // Atıcının (launcher) gerçek field pozisyonunu hesapla
-        // robotToLauncher offset: X=-0.276m (arkada), Y=0.09m (solda)
-        // Robot heading'ine göre döndürüp field koordinatlarına çevir
-        double launcherOffsetX = frc.robot.subsystems.shooter.LauncherConstants.robotToLauncher.getX();
-        double launcherOffsetY = frc.robot.subsystems.shooter.LauncherConstants.robotToLauncher.getY();
-        double heading = robotPose.getRotation().getRadians();
-        double fieldOffsetX = launcherOffsetX * Math.cos(heading) - launcherOffsetY * Math.sin(heading);
-        double fieldOffsetY = launcherOffsetX * Math.sin(heading) + launcherOffsetY * Math.cos(heading);
-        Translation2d launcherPosition = robotPose.getTranslation()
-            .plus(new Translation2d(fieldOffsetX, fieldOffsetY));
-
         // Get current alliance and select hub center
         Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
         Translation2d hubCenter = (currentAlliance == Alliance.Blue)
             ? BLUE_HUB_CENTER
             : RED_HUB_CENTER;
 
-        // Atıcının gerçek konumundan hub'a olan açıyı hesapla
-        Translation2d launcherToHub = hubCenter.minus(launcherPosition);
-        double distanceToHub = launcherToHub.getNorm();
-        Rotation2d angleToHub = new Rotation2d(launcherToHub.getX(), launcherToHub.getY());
+        // Robot merkezinden hub'a olan açıyı hesapla
+        Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
+        double distanceToHub = robotToHub.getNorm();
+        Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
 
         // Calculate rotation error (how much robot needs to turn)
         double rotationError = getModuloRotation(

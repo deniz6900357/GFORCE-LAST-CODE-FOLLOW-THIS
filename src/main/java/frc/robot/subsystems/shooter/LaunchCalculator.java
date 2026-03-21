@@ -85,18 +85,18 @@ public class LaunchCalculator {
     hoodAngleMap.put(4.35, Rotation2d.fromDegrees(10.5));
     hoodAngleMap.put(4.84, Rotation2d.fromDegrees(12.0));
 
-    // Flywheel hızları - 225'ten 370 rad/s'ye
-    flywheelSpeedMap.put(0.96, 225.0);
-    flywheelSpeedMap.put(1.16, 232.0);
-    flywheelSpeedMap.put(1.58, 242.0);
+    // Flywheel hızları - 230'dan 350 rad/s'ye
+    flywheelSpeedMap.put(0.96, 230.0);
+    flywheelSpeedMap.put(1.16, 236.0);
+    flywheelSpeedMap.put(1.58, 244.0);
     flywheelSpeedMap.put(2.00, 255.0);
-    flywheelSpeedMap.put(2.37, 270.0);
-    flywheelSpeedMap.put(2.70, 285.0);
-    flywheelSpeedMap.put(2.94, 298.0);
-    flywheelSpeedMap.put(3.48, 320.0);
-    flywheelSpeedMap.put(3.92, 340.0);
-    flywheelSpeedMap.put(4.35, 356.0);
-    flywheelSpeedMap.put(4.84, 370.0);
+    flywheelSpeedMap.put(2.37, 267.0);
+    flywheelSpeedMap.put(2.70, 280.0);
+    flywheelSpeedMap.put(2.94, 291.0);
+    flywheelSpeedMap.put(3.48, 309.0);
+    flywheelSpeedMap.put(3.92, 325.0);
+    flywheelSpeedMap.put(4.35, 339.0);
+    flywheelSpeedMap.put(4.84, 350.0);
 
     timeOfFlightMap.put(5.68, 1.16);
     timeOfFlightMap.put(4.55, 1.12);

@@ -36,4 +36,9 @@ public interface FeederIO {
      * Stops the motor.
      */
     default void stop() {}
+
+    /**
+     * Runs only the first two motors in reverse.
+     */
+    default void reverseFirstTwo() {}
 }

@@ -52,6 +52,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     private boolean m_hasAppliedOperatorPerspective = false;
     /* Track last alliance to detect changes */
     private Alliance m_lastAlliance = null;
+    /* Rate-limit Limelight orientation updates to reduce NT flush overhead */
+    private int m_visionUpdateCounter = 0;
+    /* Only reset pose once after robot boot - vision keeps it accurate after that */
+    private boolean m_initialPoseSet = false;
 
     /* Swerve requests to apply during SysId characterization */
     private final SwerveRequest.SysIdSwerveTranslation m_translationCharacterization = new SwerveRequest.SysIdSwerveTranslation();
@@ -294,10 +298,13 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     private static final String LL_RIGHT_FRONT = "limelight-usb"; // Limelight 3A - sağ önde (USB)
 
     private void updateVisionMeasurements() {
-        // Send robot orientation to BOTH Limelights for MegaTag2
-        double gyroYaw = getState().Pose.getRotation().getDegrees();
-        LimelightHelpers.SetRobotOrientation(LL_SHOOTER, gyroYaw, 0, 0, 0, 0, 0);
-        LimelightHelpers.SetRobotOrientation(LL_RIGHT_FRONT, gyroYaw, 0, 0, 0, 0, 0);
+        m_visionUpdateCounter++;
+        // SetRobotOrientation her çağrıda NT flush yapar - her 3 loop'ta bir çağır (≈17Hz yeterli)
+        if (m_visionUpdateCounter % 3 == 0) {
+            double gyroYaw = getState().Pose.getRotation().getDegrees();
+            LimelightHelpers.SetRobotOrientation(LL_SHOOTER, gyroYaw, 0, 0, 0, 0, 0);
+            LimelightHelpers.SetRobotOrientation(LL_RIGHT_FRONT, gyroYaw, 0, 0, 0, 0, 0);
+        }
 
         // Process both Limelights
         processLimelightPose(LL_SHOOTER, "Vision/Shooter");
@@ -501,8 +508,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      * @param pose The new pose for the robot
      */
     private void resetPoseForPath(Pose2d pose) {
+        if (m_initialPoseSet) return; // İlk boot'tan sonra odometry sıfırlanmasın
         try {
             resetPose(pose);
+            m_initialPoseSet = true;
         } catch (Exception e) {
             DriverStation.reportError("Failed to reset pose for path", e.getStackTrace());
         }

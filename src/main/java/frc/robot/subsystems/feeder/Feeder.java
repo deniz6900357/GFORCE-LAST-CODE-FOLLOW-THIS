@@ -104,6 +104,13 @@ public class Feeder extends SubsystemBase {
     }
 
     /**
+     * Creates a command to run only the first two motors in reverse.
+     */
+    public Command reverseFirstTwoCommand() {
+        return startEnd(() -> io.reverseFirstTwo(), this::stop).withName("Feeder: Reverse First Two");
+    }
+
+    /**
      * Updates telemetry to SmartDashboard.
      */
     private void updateTelemetry() {

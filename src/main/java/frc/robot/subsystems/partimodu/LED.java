@@ -9,16 +9,22 @@ public class LED extends SubsystemBase {
 
     // REV Blinkin Renk Kodları (Spark PWM değerleri)
     // Dokümantasyondan alınan değerler:
-    private static final double SOLID_BLUE = 0.87;   // Düz Mavi
-    private static final double STROBE_WHITE = -0.05; // Yanıp Sönen Beyaz (Strobe)
-    private static final double STROBE_BLUE = -0.09;  // Yanıp Sönen Mavi (Strobe)
+    private static final double SOLID_BLUE = 0.87;          // Düz Mavi
+    private static final double STROBE_WHITE = -0.05;        // Yanıp Sönen Beyaz (Strobe)
+    private static final double STROBE_BLUE = -0.09;         // Yanıp Sönen Mavi (Strobe)
+    private static final double HEARTBEAT_FAST_BLUE = 0.07;  // Color 1 Pattern Heartbeat Fast Mavi
 
     public LED() {
         // Blinkin, PWM üzerinden Spark motor sürücüsü gibi kontrol edilir
         blinkin = new Spark(PWM.BLINKIN_PORT);
     }
 
-    // Düz Mavi (Varsayılan)
+    // Heartbeat Fast Mavi (Varsayılan)
+    public void setHeartbeatFastBlue() {
+        blinkin.set(HEARTBEAT_FAST_BLUE);
+    }
+
+    // Düz Mavi
     public void setSolidBlue() {
         blinkin.set(SOLID_BLUE);
     }

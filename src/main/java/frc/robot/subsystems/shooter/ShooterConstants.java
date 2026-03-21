@@ -44,7 +44,7 @@ public final class ShooterConstants {
         public static final double IDLE_VELOCITY = 0.0;
         public static final double FENDER_VELOCITY = 235.0;   // Close shot
         public static final double MID_RANGE_VELOCITY = 276.0; // Medium distance
-        public static final double FAR_VELOCITY = 400.0;       // Far shot
+        public static final double FAR_VELOCITY = 330.0;       // Far shot
     }
 
     /**

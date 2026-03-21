@@ -38,7 +38,9 @@ import frc.robot.subsystems.shooter.hood.HoodIOReal;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIOReal;
 import frc.robot.subsystems.feeder.FeederIOSim;
+import frc.robot.subsystems.climb.Climb;
 import frc.robot.subsystems.partimodu.LED;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotBase;
 
 public class RobotContainer {
@@ -58,6 +60,7 @@ public class RobotContainer {
     private final Telemetry logger = new Telemetry(MaxSpeed);
 
     private final CommandXboxController joystick = new CommandXboxController(0);
+    private final Joystick climbJoystick = new Joystick(1);
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
 
@@ -74,6 +77,9 @@ public class RobotContainer {
     // Feeder subsystem (NEO motor with 27:1 reduction)
     // Use sim implementation in simulation mode to avoid REVLib driver dependency
     private final Feeder feeder = new Feeder(RobotBase.isReal() ? new FeederIOReal() : new FeederIOSim());
+
+    // Climb subsystem (NEO motors ID 41 ve 42)
+    private final Climb climb = new Climb();
 
     // LED Subsystem
     private final LED ledSubsystem = new LED();
@@ -172,15 +178,56 @@ public class RobotContainer {
             ).withTimeout(4.0).withName("Auto: Shoot")
         );
 
-        // Otonom intake komutu: 4 saniye çalışıp otomatik durur
+        // Otonom intake komutu: 5 saniye çalışıp otomatik durur
         // defer() ile her seferinde yeni komut oluşturulur - tekrar çalışma sorunu olmaz
         NamedCommands.registerCommand("Intake",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setSpeed(0.45),
+                    () -> intakeMotor.setDutyCycle(0.9),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(5.0).withName("Auto: Intake 5s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+
+        NamedCommands.registerCommand("Intake2",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setDutyCycle(0.9),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(2.0).withName("Auto: Intake 2s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+        NamedCommands.registerCommand("Intake3",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setDutyCycle(0.9),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(3.0).withName("Auto: Intake 3s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+        NamedCommands.registerCommand("Intake4",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setDutyCycle(0.9),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(4.0).withName("Auto: Intake 4s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+        NamedCommands.registerCommand("Intake5",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setDutyCycle(0.9),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(5.0).withName("Auto: Intake 5s"),
                 java.util.Set.of(intakeMotor)
             )
         );
@@ -196,7 +243,7 @@ public class RobotContainer {
 
     private void configureBindings() {
         // Varsayılan olarak LED'ler düz mavi yansın
-        ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setSolidBlue).withName("LED: Default Blue"));
+        ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setHeartbeatFastBlue).withName("LED: Default Heartbeat Fast Blue"));
 
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
@@ -270,6 +317,7 @@ public class RobotContainer {
         joystick.povDown().whileTrue(
             Commands.parallel(
                 hood.setAngleCommand(Math.toRadians(15.0)),
+                feeder.reverseFirstTwoCommand(),
                 Commands.print("🔽 POV DOWN: Hood 15° (MIN) açıya gidiyor...")
             ).withName("Hood: Test MIN 15°")
         );
@@ -343,6 +391,11 @@ public class RobotContainer {
         GenericHID keyboard = new GenericHID(0);
         new Trigger(() -> keyboard.getRawButton(27)) // X tuşu (button 27)
             .onTrue(AutoTrench.allianceAwareRightTrenchSequence(drivetrain));
+
+        // Climb joystick (kanal 1) sol stick aşağı (axis 1 < -0.1) → climb motorları çalışır
+        new Trigger(() -> climbJoystick.getRawAxis(1) < -0.1)
+            .whileTrue(Commands.run(() -> climb.setSpeed(-climbJoystick.getRawAxis(1)), climb)
+                .finallyDo(climb::stop));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }

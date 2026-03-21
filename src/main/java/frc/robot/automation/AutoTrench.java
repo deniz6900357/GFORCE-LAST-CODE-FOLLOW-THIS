@@ -15,12 +15,11 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
  *
  * <p>Provides methods to automatically move the robot to specific field positions
  * using PathPlanner's pathfinding capabilities.
+ * PathPlanner obstacle grid ile engelleri otomatik olarak dolaşır.
  */
 public class AutoTrench {
 
     // Movement constraints for automated positioning
-    // AGGRESSIVE: Max velocity: 6.0 m/s, Max acceleration: 6.0 m/s² (çok hızlı ivmelenme!)
-    // Max angular velocity: 720°/s, Max angular acceleration: 1080°/s² (çok hızlı dönüş!)
     private static final PathConstraints DEFAULT_CONSTRAINTS = new PathConstraints(
         6.0, 6.0,
         Units.degreesToRadians(720), Units.degreesToRadians(1080)
@@ -28,36 +27,26 @@ public class AutoTrench {
 
     /**
      * Creates a command to move the robot to a specific pose using PathPlanner pathfinding.
-     *
-     * @param pose Target pose (position and rotation) on the field
-     * @return Command that moves robot to target pose
      */
     public static Command moveToPose(Pose2d pose) {
         return Commands.defer(() -> {
-            System.out.println("🎯 AutoTrench: Creating pathfinding command to: " + pose);
+            System.out.println("AutoTrench: Pathfinding to: " + pose);
             return AutoBuilder.pathfindToPose(pose, DEFAULT_CONSTRAINTS);
         }, java.util.Set.of());
     }
 
     /**
      * Creates a command to move the robot to a specific pose with custom constraints.
-     *
-     * @param pose Target pose (position and rotation) on the field
-     * @param constraints Custom path constraints (velocity, acceleration limits)
-     * @return Command that moves robot to target pose
      */
     public static Command moveToPose(Pose2d pose, PathConstraints constraints) {
         return Commands.defer(() -> {
-            System.out.println("🎯 AutoTrench: Creating pathfinding command to: " + pose + " with custom constraints");
+            System.out.println("AutoTrench: Pathfinding to: " + pose + " with custom constraints");
             return AutoBuilder.pathfindToPose(pose, constraints);
         }, java.util.Set.of());
     }
 
     /**
      * Creates a sequence command that moves to multiple poses in order.
-     *
-     * @param poses Array of target poses to visit in sequence
-     * @return Command that visits all poses in order
      */
     public static Command moveToPoseSequence(Pose2d... poses) {
         Command[] commands = new Command[poses.length];
@@ -69,114 +58,56 @@ public class AutoTrench {
 
     // ========== Predefined Field Positions ==========
 
-    // BLUE ALLIANCE için:
-    // - Y=7.45 (üst) = SOL trench (Button 7 - LB)
-    // - Y=0.65 (alt) = SAĞ trench (Button 8 - RB)
+    // Tek hedef noktalar - PathPlanner obstacle grid engelleri otomatik dolaşır
+    // BLUE: Sol trench hedef Y=7.45 (üst), Sağ trench hedef Y=0.65 (alt)
+    // RED: X mirror edilir (16.518 - X), yön 180°
 
-    // RED ALLIANCE için (X mirror ediliyor):
-    // - Y=7.45 (üst) = SAĞ trench (Button 8 - RB)
-    // - Y=0.65 (alt) = SOL trench (Button 7 - LB)
+    // Blue alliance trench hedef noktaları (X bazlı: yakın ve uzak)
+    public static final Pose2d BLUE_LEFT_TRENCH_NEAR = new Pose2d(5.7, 7.45, Rotation2d.fromDegrees(0));   // X < 4.0 ise
+    public static final Pose2d BLUE_LEFT_TRENCH_FAR = new Pose2d(3.5, 7.45, Rotation2d.fromDegrees(0));    // X >= 4.0 ise
+    public static final Pose2d BLUE_RIGHT_TRENCH_NEAR = new Pose2d(5.7, 0.65, Rotation2d.fromDegrees(0));  // X < 4.0 ise
+    public static final Pose2d BLUE_RIGHT_TRENCH_FAR = new Pose2d(3.5, 0.65, Rotation2d.fromDegrees(0));   // X >= 4.0 ise
 
-    /**
-     * Blue alliance LEFT trench position 1 (X: 5.7m, Y: 7.45m - ÜST, facing forward 0°)
-     * Red alliance'da bu SAĞ trench olur
-     */
-    public static final Pose2d BLUE_LEFT_TRENCH_POS_1 = new Pose2d(5.7, 7.45, Rotation2d.fromDegrees(0));
+    // Red alliance trench hedef noktaları (mirrored, X bazlı)
+    public static final Pose2d RED_LEFT_TRENCH_NEAR = new Pose2d(10.818, 0.65, Rotation2d.fromDegrees(180));  // X > 12.518 ise
+    public static final Pose2d RED_LEFT_TRENCH_FAR = new Pose2d(13.018, 0.65, Rotation2d.fromDegrees(180));   // X <= 12.518 ise
+    public static final Pose2d RED_RIGHT_TRENCH_NEAR = new Pose2d(10.818, 7.45, Rotation2d.fromDegrees(180)); // X > 12.518 ise
+    public static final Pose2d RED_RIGHT_TRENCH_FAR = new Pose2d(13.018, 7.45, Rotation2d.fromDegrees(180));  // X <= 12.518 ise
 
-    /**
-     * Blue alliance LEFT trench position 2 (X: 3.5m, Y: 7.45m - ÜST, facing forward 0°)
-     * Red alliance'da bu SAĞ trench olur
-     */
-    public static final Pose2d BLUE_LEFT_TRENCH_POS_2 = new Pose2d(3.5, 7.45, Rotation2d.fromDegrees(0));
-
-    /**
-     * Blue alliance RIGHT trench position 1 (X: 5.7m, Y: 0.65m - ALT, facing forward 0°)
-     * Red alliance'da bu SOL trench olur
-     */
-    public static final Pose2d BLUE_RIGHT_TRENCH_POS_1 = new Pose2d(5.7, 0.65, Rotation2d.fromDegrees(0));
-
-    /**
-     * Blue alliance RIGHT trench position 2 (X: 3.5m, Y: 0.65m - ALT, facing forward 0°)
-     * Red alliance'da bu SOL trench olur
-     */
-    public static final Pose2d BLUE_RIGHT_TRENCH_POS_2 = new Pose2d(3.5, 0.65, Rotation2d.fromDegrees(0));
-
-    /**
-     * Red alliance LEFT trench position 1 (mirrored, Y: 0.65m - ALT)
-     * Field width: 16.518m, so X mirrored = 16.518 - 5.7 = 10.818m
-     */
-    public static final Pose2d RED_LEFT_TRENCH_POS_1 = new Pose2d(10.818, 0.65, Rotation2d.fromDegrees(180));
-
-    /**
-     * Red alliance LEFT trench position 2 (mirrored, Y: 0.65m - ALT)
-     * Field width: 16.518m, so X mirrored = 16.518 - 3.5 = 13.018m
-     */
-    public static final Pose2d RED_LEFT_TRENCH_POS_2 = new Pose2d(13.018, 0.65, Rotation2d.fromDegrees(180));
-
-    /**
-     * Red alliance RIGHT trench position 1 (mirrored, Y: 7.45m - ÜST)
-     * Field width: 16.518m, so X mirrored = 16.518 - 5.7 = 10.818m
-     */
-    public static final Pose2d RED_RIGHT_TRENCH_POS_1 = new Pose2d(10.818, 7.45, Rotation2d.fromDegrees(180));
-
-    /**
-     * Red alliance RIGHT trench position 2 (mirrored, Y: 7.45m - ÜST)
-     * Field width: 16.518m, so X mirrored = 16.518 - 3.5 = 13.018m
-     */
-    public static final Pose2d RED_RIGHT_TRENCH_POS_2 = new Pose2d(13.018, 7.45, Rotation2d.fromDegrees(180));
-
-    /**
-     * Creates a command to move through blue alliance left trench sequence (Y: 7.45 - ÜST).
-     * Goes to position 1 (5.7, 7.45) then position 2 (3.5, 7.45).
+    /*
+     * ========== ESKİ 2-WAYPOINT SİSTEMİ (yorum satırı olarak saklandı) ==========
      *
-     * @return Command that executes blue left trench sequence
+     * public static final Pose2d BLUE_LEFT_TRENCH_POS_1 = new Pose2d(5.7, 7.45, Rotation2d.fromDegrees(0));
+     * public static final Pose2d BLUE_LEFT_TRENCH_POS_2 = new Pose2d(3.5, 7.45, Rotation2d.fromDegrees(0));
+     * public static final Pose2d BLUE_RIGHT_TRENCH_POS_1 = new Pose2d(5.7, 0.65, Rotation2d.fromDegrees(0));
+     * public static final Pose2d BLUE_RIGHT_TRENCH_POS_2 = new Pose2d(3.5, 0.65, Rotation2d.fromDegrees(0));
+     * public static final Pose2d RED_LEFT_TRENCH_POS_1 = new Pose2d(10.818, 0.65, Rotation2d.fromDegrees(180));
+     * public static final Pose2d RED_LEFT_TRENCH_POS_2 = new Pose2d(13.018, 0.65, Rotation2d.fromDegrees(180));
+     * public static final Pose2d RED_RIGHT_TRENCH_POS_1 = new Pose2d(10.818, 7.45, Rotation2d.fromDegrees(180));
+     * public static final Pose2d RED_RIGHT_TRENCH_POS_2 = new Pose2d(13.018, 7.45, Rotation2d.fromDegrees(180));
+     *
+     * // Eski alliance-aware left trench (2 waypoint):
+     * // if (isBlue) {
+     * //     if (robotX < 4.0) return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_2, BLUE_LEFT_TRENCH_POS_1);
+     * //     else return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_1, BLUE_LEFT_TRENCH_POS_2);
+     * // } else {
+     * //     if (robotX > 12.518) return moveToPoseSequence(RED_LEFT_TRENCH_POS_2, RED_LEFT_TRENCH_POS_1);
+     * //     else return moveToPoseSequence(RED_LEFT_TRENCH_POS_1, RED_LEFT_TRENCH_POS_2);
+     * // }
+     *
+     * // Eski alliance-aware right trench (2 waypoint):
+     * // if (isBlue) {
+     * //     if (robotX < 4.0) return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_2, BLUE_RIGHT_TRENCH_POS_1);
+     * //     else return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_1, BLUE_RIGHT_TRENCH_POS_2);
+     * // } else {
+     * //     if (robotX > 12.518) return moveToPoseSequence(RED_RIGHT_TRENCH_POS_2, RED_RIGHT_TRENCH_POS_1);
+     * //     else return moveToPoseSequence(RED_RIGHT_TRENCH_POS_1, RED_RIGHT_TRENCH_POS_2);
+     * // }
      */
-    public static Command blueLeftTrenchSequence() {
-        return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_1, BLUE_LEFT_TRENCH_POS_2)
-            .withName("Blue Left Trench Sequence");
-    }
 
     /**
-     * Creates a command to move through blue alliance right trench sequence (Y: 0.65 - ALT).
-     * Goes to position 1 (5.7, 0.65) then position 2 (3.5, 0.65).
-     *
-     * @return Command that executes blue right trench sequence
-     */
-    public static Command blueRightTrenchSequence() {
-        return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_1, BLUE_RIGHT_TRENCH_POS_2)
-            .withName("Blue Right Trench Sequence");
-    }
-
-    /**
-     * Creates a command to move through red alliance left trench sequence (Y: 0.65 - ALT, mirrored).
-     * Goes to position 1 (10.818, 0.65) then position 2 (13.018, 0.65).
-     *
-     * @return Command that executes red left trench sequence
-     */
-    public static Command redLeftTrenchSequence() {
-        return moveToPoseSequence(RED_LEFT_TRENCH_POS_1, RED_LEFT_TRENCH_POS_2)
-            .withName("Red Left Trench Sequence");
-    }
-
-    /**
-     * Creates a command to move through red alliance right trench sequence (Y: 7.45 - ÜST, mirrored).
-     * Goes to position 1 (10.818, 7.45) then position 2 (13.018, 7.45).
-     *
-     * @return Command that executes red right trench sequence
-     */
-    public static Command redRightTrenchSequence() {
-        return moveToPoseSequence(RED_RIGHT_TRENCH_POS_1, RED_RIGHT_TRENCH_POS_2)
-            .withName("Red Right Trench Sequence");
-    }
-
-    /**
-     * Creates an alliance-aware left trench sequence command (Button 7 - LB).
-     * Blue: Upper trench (Y: 7.45 - SOL)
-     * Red: Lower trench (Y: 0.65 - SOL, mirrored)
-     * SMART: If robot X < 4.0, reverses path direction (goes from 3.5 -> 5.7 instead)
-     *
-     * @param drivetrain Drivetrain subsystem to get current robot position
-     * @return Command that executes appropriate left trench sequence for current alliance
+     * Alliance-aware sol trench komutu (POV Left / LB).
+     * Tek hedef noktaya gider, PathPlanner obstacle grid ile engelleri otomatik dolaşır.
      */
     public static Command allianceAwareLeftTrenchSequence(CommandSwerveDrivetrain drivetrain) {
         return Commands.defer(() -> {
@@ -185,37 +116,21 @@ public class AutoTrench {
             boolean isBlue = alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
             double robotX = drivetrain.getState().Pose.getX();
 
+            Pose2d target;
             if (isBlue) {
-                if (robotX < 4.0) {
-                    System.out.println("🔄 BLUE Robot X < 4.0, TERS yön: 3.5 -> 5.7");
-                    return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_2, BLUE_LEFT_TRENCH_POS_1);
-                } else {
-                    System.out.println("➡️ BLUE Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
-                    return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_1, BLUE_LEFT_TRENCH_POS_2);
-                }
+                target = (robotX < 4.0) ? BLUE_LEFT_TRENCH_NEAR : BLUE_LEFT_TRENCH_FAR;
             } else {
-                if (robotX > 12.518) {
-                    System.out.println("🔄 RED Robot X > 12.518, TERS yön: 13.018 -> 10.818");
-                    return moveToPoseSequence(RED_LEFT_TRENCH_POS_2, RED_LEFT_TRENCH_POS_1);
-                } else {
-                    System.out.println("➡️ RED Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
-                    return moveToPoseSequence(RED_LEFT_TRENCH_POS_1, RED_LEFT_TRENCH_POS_2);
-                }
+                target = (robotX > 12.518) ? RED_LEFT_TRENCH_NEAR : RED_LEFT_TRENCH_FAR;
             }
+            System.out.println("AutoTrench SOL: " + (isBlue ? "BLUE" : "RED") + " X=" + robotX + " -> " + target);
+            return moveToPose(target);
         }, java.util.Set.of(drivetrain))
-        .withName("Alliance-Aware Left Trench Sequence")
-        .beforeStarting(() -> System.out.println("🚀 AutoTrench SOL BAŞLADI!"))
-        .andThen(() -> System.out.println("✅ AutoTrench SOL TAMAMLANDI!"));
+        .withName("Alliance-Aware Left Trench");
     }
 
     /**
-     * Creates an alliance-aware right trench sequence command (Button 8 - RB).
-     * Blue: Lower trench (Y: 0.65 - SAĞ)
-     * Red: Upper trench (Y: 7.45 - SAĞ, mirrored)
-     * SMART: If robot X < 4.0, reverses path direction (goes from 3.5 -> 5.7 instead)
-     *
-     * @param drivetrain Drivetrain subsystem to get current robot position
-     * @return Command that executes appropriate right trench sequence for current alliance
+     * Alliance-aware sağ trench komutu (POV Right / RB).
+     * X bazlı hedef seçimi: robot yakınsa yakın hedefe, uzaksa uzak hedefe gider.
      */
     public static Command allianceAwareRightTrenchSequence(CommandSwerveDrivetrain drivetrain) {
         return Commands.defer(() -> {
@@ -224,26 +139,15 @@ public class AutoTrench {
             boolean isBlue = alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
             double robotX = drivetrain.getState().Pose.getX();
 
+            Pose2d target;
             if (isBlue) {
-                if (robotX < 4.0) {
-                    System.out.println("🔄 BLUE Robot X < 4.0, TERS yön: 3.5 -> 5.7");
-                    return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_2, BLUE_RIGHT_TRENCH_POS_1);
-                } else {
-                    System.out.println("➡️ BLUE Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
-                    return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_1, BLUE_RIGHT_TRENCH_POS_2);
-                }
+                target = (robotX < 4.0) ? BLUE_RIGHT_TRENCH_NEAR : BLUE_RIGHT_TRENCH_FAR;
             } else {
-                if (robotX > 12.518) {
-                    System.out.println("🔄 RED Robot X > 12.518, TERS yön: 13.018 -> 10.818");
-                    return moveToPoseSequence(RED_RIGHT_TRENCH_POS_2, RED_RIGHT_TRENCH_POS_1);
-                } else {
-                    System.out.println("➡️ RED Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
-                    return moveToPoseSequence(RED_RIGHT_TRENCH_POS_1, RED_RIGHT_TRENCH_POS_2);
-                }
+                target = (robotX > 12.518) ? RED_RIGHT_TRENCH_NEAR : RED_RIGHT_TRENCH_FAR;
             }
+            System.out.println("AutoTrench SAG: " + (isBlue ? "BLUE" : "RED") + " X=" + robotX + " -> " + target);
+            return moveToPose(target);
         }, java.util.Set.of(drivetrain))
-        .withName("Alliance-Aware Right Trench Sequence")
-        .beforeStarting(() -> System.out.println("🚀 AutoTrench SAĞ BAŞLADI!"))
-        .andThen(() -> System.out.println("✅ AutoTrench SAĞ TAMAMLANDI!"));
+        .withName("Alliance-Aware Right Trench");
     }
 }

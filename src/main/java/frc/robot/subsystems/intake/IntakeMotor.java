@@ -4,6 +4,7 @@ import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.wpilibj.RobotBase;
@@ -15,15 +16,17 @@ import frc.robot.RobotConstants.PortConstants.CAN;
  * Intake motor subsystem using Kraken X60 motor.
  *
  * <p>Single Kraken X60 motor connected to CANivore for intake roller control.
- * Simple percent output control - no position tracking needed.
+ * Velocity control - voltajdan bağımsız sabit hız.
  */
 @Logged
 public class IntakeMotor extends SubsystemBase {
     private static final int MOTOR_CAN_ID = 31; // Intake motor CAN ID
-    private static final double INTAKE_SPEED = 0.45; // 100% speed for intake
+    // 80% of 6000 RPM = 4800 RPM = 80 rot/s (503 rad/s)
+    private static final double INTAKE_VELOCITY_RPS = 80.0; // rot/s
     private static final int CURRENT_LIMIT_AMPS = 60; // Kraken X60 safe limit
 
     private final TalonFX intakeMotor;
+    private final VelocityVoltage velocityRequest = new VelocityVoltage(0.0).withSlot(0);
     private final DutyCycleOut dutyCycleRequest = new DutyCycleOut(0.0);
 
     public IntakeMotor() {
@@ -35,7 +38,10 @@ public class IntakeMotor extends SubsystemBase {
             TalonFXConfiguration config = new TalonFXConfiguration();
             config.CurrentLimits.SupplyCurrentLimit = CURRENT_LIMIT_AMPS;
             config.CurrentLimits.SupplyCurrentLimitEnable = true;
-            config.MotorOutput.NeutralMode = NeutralModeValue.Coast; // Coast mode for easy hand-feeding
+            config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+            // Velocity PID - Slot 0: kV = 12V / 100 rot/s (Kraken X60 free speed)
+            config.Slot0.kV = 0.12;
+            config.Slot0.kP = 0.1;
 
             intakeMotor.getConfigurator().apply(config);
         } else {
@@ -44,13 +50,20 @@ public class IntakeMotor extends SubsystemBase {
     }
 
     /**
-     * Sets the intake motor speed.
-     *
-     * @param speed Motor speed percentage (-1.0 to 1.0)
+     * Sets the intake motor velocity in rot/s.
      */
-    public void setSpeed(double speed) {
+    public void setVelocity(double velocityRPS) {
         if (intakeMotor != null) {
-            intakeMotor.setControl(dutyCycleRequest.withOutput(speed));
+            intakeMotor.setControl(velocityRequest.withVelocity(velocityRPS));
+        }
+    }
+
+    /**
+     * Sets the intake motor output as duty cycle (0.0 - 1.0).
+     */
+    public void setDutyCycle(double percent) {
+        if (intakeMotor != null) {
+            intakeMotor.setControl(dutyCycleRequest.withOutput(percent));
         }
     }
 
@@ -59,35 +72,28 @@ public class IntakeMotor extends SubsystemBase {
      */
     public void stop() {
         if (intakeMotor != null) {
-            intakeMotor.setControl(dutyCycleRequest.withOutput(0.0));
+            intakeMotor.stopMotor();
         }
     }
 
     /**
-     * Creates a command to run intake at default speed.
-     * Automatically stops when command ends.
-     *
-     * @return Command that runs intake motor
+     * Creates a command to run intake at default velocity (45% = 45 rot/s).
      */
     public Command intakeCommand() {
         return startEnd(
-            () -> setSpeed(INTAKE_SPEED),
+            () -> setVelocity(INTAKE_VELOCITY_RPS),
             this::stop
         ).withName("Intake: Run");
     }
 
     /**
-     * Creates a command to run intake at custom speed.
-     * Automatically stops when command ends.
-     *
-     * @param speed Motor speed percentage (-1.0 to 1.0)
-     * @return Command that runs intake at specified speed
+     * Creates a command to run intake at custom velocity in rot/s.
      */
-    public Command intakeCommand(double speed) {
+    public Command intakeCommand(double velocityRPS) {
         return startEnd(
-            () -> setSpeed(speed),
+            () -> setVelocity(velocityRPS),
             this::stop
-        ).withName("Intake: " + (int)(speed * 100) + "%");
+        ).withName("Intake: " + (int) velocityRPS + " rot/s");
     }
 
     /**
