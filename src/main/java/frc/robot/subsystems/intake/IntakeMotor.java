@@ -20,7 +20,7 @@ import frc.robot.RobotConstants.PortConstants.CAN;
 @Logged
 public class IntakeMotor extends SubsystemBase {
     private static final int MOTOR_CAN_ID = 31; // Intake motor CAN ID
-    private static final double INTAKE_SPEED = 0.3; // 30% speed for intake
+    private static final double INTAKE_SPEED = 0.45; // 100% speed for intake
     private static final int CURRENT_LIMIT_AMPS = 60; // Kraken X60 safe limit
 
     private final TalonFX intakeMotor;

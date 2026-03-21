@@ -27,6 +27,6 @@ public final class FieldConstants {
     // Hub center point (blue alliance, meters)
     // Calculated from average of AprilTags 17-28
     // X: 4.552m (center of tag cluster), Y: 4.021m (vertical center), Z: 2.1m (shooter height)
-    public static final Translation3d topCenterPoint = new Translation3d(4.552, 4.021, 2.1);
+    public static final Translation3d topCenterPoint = new Translation3d(4.6116, 4.021, 2.1);
   }
 }

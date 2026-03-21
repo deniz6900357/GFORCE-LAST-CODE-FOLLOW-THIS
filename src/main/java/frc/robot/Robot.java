@@ -8,6 +8,7 @@ import edu.wpi.first.wpilibj.PowerDistribution;
 import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.net.PortForwarder;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.util.FullSubsystem;
@@ -52,6 +53,19 @@ public class Robot extends LoggedRobot{
     if (isReal()) {
       Logger.start();
     }
+
+    // Limelight 3A (USB Index 0) port forwarding - USB IP: 172.29.0.1
+    // (robotIP):5801 → Limelight3A (id 0) web interface
+    // (robotIP):5800 → Limelight3A (id 0) video stream
+    PortForwarder.add(5801, "172.29.0.1", 5801);
+    PortForwarder.add(5802, "172.29.0.1", 5802);
+    PortForwarder.add(5803, "172.29.0.1", 5803);
+    PortForwarder.add(5804, "172.29.0.1", 5804);
+    PortForwarder.add(5805, "172.29.0.1", 5805);
+    PortForwarder.add(5806, "172.29.0.1", 5806);
+    PortForwarder.add(5807, "172.29.0.1", 5807);
+    PortForwarder.add(5808, "172.29.0.1", 5808);
+    PortForwarder.add(5809, "172.29.0.1", 5809);
 
     m_robotContainer = new RobotContainer();
   }

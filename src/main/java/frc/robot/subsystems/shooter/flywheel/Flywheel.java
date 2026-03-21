@@ -8,7 +8,7 @@
 package frc.robot.subsystems.shooter.flywheel;
 
 import edu.wpi.first.math.filter.Debouncer;
-import edu.wpi.first.math.filter.Debouncer.DebounceType;
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Robot;
 import frc.robot.subsystems.shooter.LaunchCalculator;
@@ -32,18 +32,14 @@ public class Flywheel extends FullSubsystem {
   private boolean motorDisconnectedAlertActive = false;
   private boolean followerDisconnectedAlertActive = false;
 
-  private static final LoggedTunableNumber torqueCurrentControlTolerance =
-      new LoggedTunableNumber("Flywheel/TorqueCurrentControlTolerance", 20.0);
-  private static final LoggedTunableNumber torqueCurrentControlDebounceTime =
-      new LoggedTunableNumber("Flywheel/TorqueCurrentControlDebounce", 0.025);
-  private static final LoggedTunableNumber atGoalDebounceTime =
-      new LoggedTunableNumber("Flywheel/AtGoalDebounce", 0.2);
+  private static final LoggedTunableNumber kP = new LoggedTunableNumber("Flywheel/kP", 0.4);
+  private static final LoggedTunableNumber kD = new LoggedTunableNumber("Flywheel/kD", 0.0);
+  private static final LoggedTunableNumber kS = new LoggedTunableNumber("Flywheel/kS", 0.22);
+  private static final LoggedTunableNumber kV = new LoggedTunableNumber("Flywheel/kV", 0.019);
+  private static final LoggedTunableNumber maxAcceleration =
+      new LoggedTunableNumber("Flywheel/MaxAcceleration", 250.0);
 
-  private Debouncer torqueCurrentDebouncer =
-      new Debouncer(torqueCurrentControlDebounceTime.get(), DebounceType.kFalling);
-  private Debouncer atGoalDebouncer = new Debouncer(atGoalDebounceTime.get(), DebounceType.kFalling);
-  private boolean lastTorqueCurrentControl = false;
-  private long launchCount = 0;
+  private SlewRateLimiter slewRateLimiter = new SlewRateLimiter(250.0);
 
   private boolean atGoal = false;
 
@@ -56,13 +52,13 @@ public class Flywheel extends FullSubsystem {
     io.updateInputs(inputs);
     Logger.processInputs(name, inputs);
 
-    // Update debouncers if tunable numbers changed
-    if (torqueCurrentControlDebounceTime.hasChanged(hashCode())) {
-      torqueCurrentDebouncer =
-          new Debouncer(torqueCurrentControlDebounceTime.get(), DebounceType.kFalling);
-    }
-    if (atGoalDebounceTime.hasChanged(hashCode())) {
-      atGoalDebouncer = new Debouncer(atGoalDebounceTime.get(), DebounceType.kFalling);
+    // PID gains'i outputs'a aktar
+    outputs.kP = kP.get();
+    outputs.kD = kD.get();
+
+    // Slew rate limiter güncelle
+    if (maxAcceleration.hasChanged(hashCode())) {
+      slewRateLimiter = new SlewRateLimiter(maxAcceleration.get());
     }
 
     // Motor disconnection alerts
@@ -91,25 +87,18 @@ public class Flywheel extends FullSubsystem {
     io.applyOutputs(outputs);
   }
 
-  /** Run closed loop at the specified velocity. */
+  /** Run closed loop at the specified velocity with slew rate limiting and feedforward. */
   private void runVelocity(double velocityRadsPerSec) {
-    boolean inTolerance =
-        Math.abs(inputs.velocityRadsPerSec - velocityRadsPerSec)
-            <= torqueCurrentControlTolerance.get();
-    boolean torqueCurrentControl = torqueCurrentDebouncer.calculate(inTolerance);
-    atGoal = atGoalDebouncer.calculate(inTolerance);
+    double setpointRadPerSec = slewRateLimiter.calculate(velocityRadsPerSec);
+    atGoal = Math.abs(setpointRadPerSec - velocityRadsPerSec) < 2.0;
 
-    if (!torqueCurrentControl && lastTorqueCurrentControl) {
-      launchCount++;
-    }
-    lastTorqueCurrentControl = torqueCurrentControl;
+    outputs.mode = FlywheelIOOutputMode.VELOCITY;
+    outputs.velocityRadsPerSec = setpointRadPerSec;
+    outputs.feedforward =
+        Math.signum(setpointRadPerSec) * kS.get() + setpointRadPerSec * kV.get();
 
-    outputs.mode =
-        torqueCurrentControl
-            ? FlywheelIOOutputMode.TORQUE_CURRENT_BANG_BANG
-            : FlywheelIOOutputMode.DUTY_CYCLE_BANG_BANG;
-    outputs.velocityRadsPerSec = velocityRadsPerSec;
-    Logger.recordOutput(name + "/Setpoint", velocityRadsPerSec);
+    Logger.recordOutput(name + "/Setpoint", setpointRadPerSec);
+    Logger.recordOutput(name + "/Goal", velocityRadsPerSec);
   }
 
   /** Stops the flywheel. */
@@ -117,6 +106,7 @@ public class Flywheel extends FullSubsystem {
     outputs.mode = FlywheelIOOutputMode.COAST;
     outputs.velocityRadsPerSec = 0.0;
     atGoal = false;
+    slewRateLimiter.reset(inputs.velocityRadsPerSec);
   }
 
   /** Returns the current velocity in rad/s. */
@@ -138,17 +128,16 @@ public class Flywheel extends FullSubsystem {
     return runEnd(() -> runVelocity(velocity.getAsDouble()), this::stop);
   }
 
+  public Command runVelocityCommand(double velocityRadsPerSec) {
+    return runEnd(() -> runVelocity(velocityRadsPerSec), this::stop)
+        .withName("Flywheel: " + Math.round(velocityRadsPerSec) + " rad/s");
+  }
+
   public Command stopCommand() {
     return runOnce(this::stop);
   }
 
-  // Helper methods for backward compatibility
   public void setVelocity(double velocityRadsPerSec) {
     runVelocity(velocityRadsPerSec);
-  }
-
-  public Command runVelocityCommand(double velocityRadsPerSec) {
-    return runEnd(() -> runVelocity(velocityRadsPerSec), this::stop)
-        .withName("Flywheel: " + Math.round(velocityRadsPerSec) + " rad/s");
   }
 }

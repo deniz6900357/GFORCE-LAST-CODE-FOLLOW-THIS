@@ -66,34 +66,37 @@ public class LaunchCalculator {
       new InterpolatingDoubleTreeMap();
 
   static {
-    minDistance = 1.34;
-    maxDistance = 5.60;
+    minDistance = 0.96;
+    maxDistance = 4.84;
     // TODO: find a real value for this
     maxDistanceForReverseLaunch = 2.0;
     phaseDelay = 0.03;
 
-    // MA 2026 original values - optimized for actual shooting
-    hoodAngleMap.put(1.34, Rotation2d.fromDegrees(19.0));
-    hoodAngleMap.put(1.78, Rotation2d.fromDegrees(19.0));
-    hoodAngleMap.put(2.17, Rotation2d.fromDegrees(24.0));
-    hoodAngleMap.put(2.81, Rotation2d.fromDegrees(27.0));
-    hoodAngleMap.put(3.82, Rotation2d.fromDegrees(29.0));
-    hoodAngleMap.put(4.09, Rotation2d.fromDegrees(30.0));
-    hoodAngleMap.put(4.40, Rotation2d.fromDegrees(31.0));
-    hoodAngleMap.put(4.77, Rotation2d.fromDegrees(32.0));
-    hoodAngleMap.put(5.57, Rotation2d.fromDegrees(32.0));
-    hoodAngleMap.put(5.60, Rotation2d.fromDegrees(35.0));
+    // Hood açıları - 2m'ye kadar 0°, sonra kademeli 12°'ye çıkış
+    hoodAngleMap.put(0.96, Rotation2d.fromDegrees(0.0));
+    hoodAngleMap.put(1.16, Rotation2d.fromDegrees(0.0));
+    hoodAngleMap.put(1.58, Rotation2d.fromDegrees(0.0));
+    hoodAngleMap.put(2.00, Rotation2d.fromDegrees(0.0));
+    hoodAngleMap.put(2.37, Rotation2d.fromDegrees(1.5));
+    hoodAngleMap.put(2.70, Rotation2d.fromDegrees(3.0));
+    hoodAngleMap.put(2.94, Rotation2d.fromDegrees(4.0));
+    hoodAngleMap.put(3.48, Rotation2d.fromDegrees(6.5));
+    hoodAngleMap.put(3.92, Rotation2d.fromDegrees(8.5));
+    hoodAngleMap.put(4.35, Rotation2d.fromDegrees(10.5));
+    hoodAngleMap.put(4.84, Rotation2d.fromDegrees(12.0));
 
-    flywheelSpeedMap.put(1.34, 210.0);
-    flywheelSpeedMap.put(1.78, 220.0);
-    flywheelSpeedMap.put(2.17, 220.0);
-    flywheelSpeedMap.put(2.81, 230.0);
-    flywheelSpeedMap.put(3.82, 250.0);
-    flywheelSpeedMap.put(4.09, 255.0);
-    flywheelSpeedMap.put(4.40, 260.0);
-    flywheelSpeedMap.put(4.77, 265.0);
-    flywheelSpeedMap.put(5.57, 275.0);
-    flywheelSpeedMap.put(5.60, 290.0);
+    // Flywheel hızları - 225'ten 370 rad/s'ye
+    flywheelSpeedMap.put(0.96, 225.0);
+    flywheelSpeedMap.put(1.16, 232.0);
+    flywheelSpeedMap.put(1.58, 242.0);
+    flywheelSpeedMap.put(2.00, 255.0);
+    flywheelSpeedMap.put(2.37, 270.0);
+    flywheelSpeedMap.put(2.70, 285.0);
+    flywheelSpeedMap.put(2.94, 298.0);
+    flywheelSpeedMap.put(3.48, 320.0);
+    flywheelSpeedMap.put(3.92, 340.0);
+    flywheelSpeedMap.put(4.35, 356.0);
+    flywheelSpeedMap.put(4.84, 370.0);
 
     timeOfFlightMap.put(5.68, 1.16);
     timeOfFlightMap.put(4.55, 1.12);

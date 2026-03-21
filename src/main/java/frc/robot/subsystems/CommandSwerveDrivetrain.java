@@ -289,23 +289,11 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      * <p>This fuses vision data with wheel odometry using WPILib's Kalman filter.
      * Vision measurements retroactively correct odometry drift with timestamp-based fusion.
      */
-    // Only use these specific AprilTags for pose estimation
-    private static final int[] VALID_TAG_IDS = {15, 16, 31, 32};
-    private boolean visionFiltersApplied = false;
-
     // Dual Limelight names
     private static final String LL_SHOOTER = "limelight";    // Limelight 3 - shooter üstünde
-    private static final String LL_RIGHT_FRONT = "limelight3a"; // Limelight 3A - sağ önde
+    private static final String LL_RIGHT_FRONT = "limelight-usb"; // Limelight 3A - sağ önde (USB)
 
     private void updateVisionMeasurements() {
-        // Apply tag filters once to BOTH Limelights
-        if (!visionFiltersApplied) {
-            LimelightHelpers.SetFiducialIDFiltersOverride(LL_SHOOTER, VALID_TAG_IDS);
-            LimelightHelpers.SetFiducialIDFiltersOverride(LL_RIGHT_FRONT, VALID_TAG_IDS);
-            visionFiltersApplied = true;
-            System.out.println("Vision: Tag filters applied to BOTH Limelights - only using tags 15, 16, 31, 32");
-        }
-
         // Send robot orientation to BOTH Limelights for MegaTag2
         double gyroYaw = getState().Pose.getRotation().getDegrees();
         LimelightHelpers.SetRobotOrientation(LL_SHOOTER, gyroYaw, 0, 0, 0, 0, 0);

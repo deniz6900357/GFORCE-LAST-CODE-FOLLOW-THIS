@@ -13,6 +13,7 @@ import com.pathplanner.lib.auto.NamedCommands;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -149,6 +150,48 @@ public class RobotContainer {
                 MaxAngularRate,
                 true // finishWhenAtTarget = true for autonomous
         ));
+
+        // Otonom atış komutu: AimToHub + Hood + Flywheel + 0.5s sonra Feeder, toplam 4 saniye
+        NamedCommands.registerCommand("Shoot",
+            Commands.parallel(
+                new AimToHubCommand(
+                    drivetrain,
+                    () -> 0.0,
+                    () -> 0.0,
+                    MaxSpeed,
+                    MaxAngularRate
+                ),
+                hood.runTrackTargetCommand(),
+                flywheel.runTrackTargetCommand(),
+                Commands.waitSeconds(0.5)
+                    .andThen(Commands.startEnd(
+                        feeder::feed,
+                        feeder::stop,
+                        feeder
+                    ))
+            ).withTimeout(4.0).withName("Auto: Shoot")
+        );
+
+        // Otonom intake komutu: 4 saniye çalışıp otomatik durur
+        // defer() ile her seferinde yeni komut oluşturulur - tekrar çalışma sorunu olmaz
+        NamedCommands.registerCommand("Intake",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setSpeed(0.45),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(4.0).withName("Auto: Intake 4s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+
+        // Intake durdurma komutu
+        NamedCommands.registerCommand("StopIntake",
+            Commands.defer(
+                () -> intakeMotor.stopCommand().withName("Auto: Stop Intake"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
     }
 
     private void configureBindings() {
@@ -173,60 +216,26 @@ public class RobotContainer {
         RobotModeTriggers.disabled().whileTrue(
                 drivetrain.applyRequest(() -> idle).ignoringDisable(true));
 
-        // POV Left: Point wheels (eski B tuşu)
-        joystick.povLeft().whileTrue(drivetrain.applyRequest(
-                () -> point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))));
-
-        // Right Bumper (RB - Button 8): AutoTrench Sağ Geçit
-        // Blue: Alt geçit (Y: 0.65), Red: Üst geçit (Y: 7.45, mirrored)
-        // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
-        // BASILI TUTUNCA: Çalışır, bırakınca durur (onTrue başlatır, onFalse iptal eder)
-        joystick.button(8).onTrue(
-            Commands.runOnce(() -> {
-                System.out.println("⚡ RB TUŞUNA BASILDI (Button 8) - AutoTrench SAĞ tetikleniyor...");
-                SmartDashboard.putBoolean("AutoTrench/RightRunning", true);
-            })
-            .andThen(AutoTrench.allianceAwareRightTrenchSequence(drivetrain))
-            .finallyDo(() -> {
-                System.out.println("⏹️ RB BIRAKILDI - AutoTrench SAĞ durduruluyor...");
-                SmartDashboard.putBoolean("AutoTrench/RightRunning", false);
-            })
+        // POV Left: AutoTrench Sol Geçit
+        joystick.povLeft().whileTrue(
+            AutoTrench.allianceAwareLeftTrenchSequence(drivetrain)
         );
 
-        // RB bırakıldığında: Drivetrain'in şu anki komutunu iptal et (AutoTrench durur)
-        joystick.button(8).onFalse(
-            Commands.runOnce(() -> {
-                System.out.println("🛑 RB BIRAKILDI - Drivetrain komutları iptal ediliyor...");
-                if (drivetrain.getCurrentCommand() != null) {
-                    drivetrain.getCurrentCommand().cancel();
-                }
-            })
+        // POV Right: AutoTrench Sağ Geçit
+        joystick.povRight().whileTrue(
+            AutoTrench.allianceAwareRightTrenchSequence(drivetrain)
         );
 
-        // Left Bumper (LB - Button 7): AutoTrench Sol Geçit
-        // Blue: Üst geçit (Y: 7.45), Red: Alt geçit (Y: 0.65, mirrored)
-        // SMART: X < 4.0 ise ters yönden gider (3.5 -> 5.7)
-        // BASILI TUTUNCA: Çalışır, bırakınca durur (onTrue başlatır, onFalse iptal eder)
-        joystick.button(7).onTrue(
-            Commands.runOnce(() -> {
-                System.out.println("⚡ LB TUŞUNA BASILDI (Button 7) - AutoTrench SOL tetikleniyor...");
-                SmartDashboard.putBoolean("AutoTrench/LeftRunning", true);
-            })
-            .andThen(AutoTrench.allianceAwareLeftTrenchSequence(drivetrain))
-            .finallyDo(() -> {
-                System.out.println("⏹️ LB BIRAKILDI - AutoTrench SOL durduruluyor...");
-                SmartDashboard.putBoolean("AutoTrench/LeftRunning", false);
-            })
+        // Right Bumper (RB): AutoTrench Sağ Geçit
+        // Basılı tut = çalışır, bırak = durur
+        joystick.button(8).whileTrue(
+            AutoTrench.allianceAwareRightTrenchSequence(drivetrain)
         );
 
-        // LB bırakıldığında: Drivetrain'in şu anki komutunu iptal et (AutoTrench durur)
-        joystick.button(7).onFalse(
-            Commands.runOnce(() -> {
-                System.out.println("🛑 LB BIRAKILDI - Drivetrain komutları iptal ediliyor...");
-                if (drivetrain.getCurrentCommand() != null) {
-                    drivetrain.getCurrentCommand().cancel();
-                }
-            })
+        // Left Bumper (LB): AutoTrench Sol Geçit
+        // Basılı tut = çalışır, bırak = durur
+        joystick.button(7).whileTrue(
+            AutoTrench.allianceAwareLeftTrenchSequence(drivetrain)
         );
 
         // A button: Auto-aim + Hood tracking (Hub'a döner VE hood açısı ayarlanır)
@@ -246,14 +255,12 @@ public class RobotContainer {
             ).withName("A: Aim + Hood Track")
         );
 
-        // B button: Hood only (Predictive shot) - TESTING
-        // Basılı tuttuğun sürece: Hood açısı ayarlanır (Flywheel disabled for testing)
+        // B button: AutoTrench Sol test
         joystick.b().whileTrue(
-            hood.runTrackTargetCommand().withName("B: Hood Only (Track Target)")
+            AutoTrench.allianceAwareLeftTrenchSequence(drivetrain)
         );
 
-        // Hood zero etme (POV sağ veya Start butonu) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
-        joystick.povRight().onTrue(hood.zeroCommand());
+        // Hood zero etme (Start butonu) - İLK ÇALIŞTIRMADA MUTLAKA YAPIN!
         joystick.start().onTrue(hood.zeroCommand());
 
         // POV Up: Auto-align to tower scoring position (odometry-based)
@@ -267,47 +274,69 @@ public class RobotContainer {
             ).withName("Hood: Test MIN 15°")
         );
 
-        // X tuşu: Gyro reset - Robot'un mevcut yönünü 0° olarak ayarla
+        // X tuşu: Gyro reset
         joystick.x().onTrue(
             Commands.runOnce(() -> {
-                // Gyro'yu 0° olarak ayarla (forward = 0°)
                 drivetrain.seedFieldCentric(new Rotation2d());
-                System.out.println("🧭 GYRO RESET! Yeni yön: 0°");
+                System.out.println("GYRO RESET! Yeni yon: 0");
             }).ignoringDisable(true)
         );
 
-        // RT (sağ trigger): AimToHub + Hood + Flywheel → atGoal olunca Feeder çalışır
-        final AimToHubCommand rtAimCommand = new AimToHubCommand(
-            drivetrain,
-            joystick::getLeftY,
-            joystick::getLeftX,
-            MaxSpeed,
-            MaxAngularRate
-        );
-
+        // RT (sağ trigger): Koşullu atış
+        // X > 5.25 ise: sabit noktaya aim + hood 0° + flywheel %80 (296 rad/s) + feeder
+        // X <= 5.25 ise: normal AimToHub + Hood Track + Flywheel Track + Feeder
         joystick.rightTrigger().whileTrue(
-            Commands.parallel(
-                rtAimCommand,
-                hood.runTrackTargetCommand(),
-                flywheel.runTrackTargetCommand(),
-                Commands.waitUntil(flywheel::atGoal)
-                    .andThen(Commands.startEnd(
-                        feeder::feed,
-                        feeder::stop,
-                        feeder)),
-                ledSubsystem.run(ledSubsystem::setBlinkBlue).withName("LED: Blink Blue")
-            ).withName("RT: Aim + Shoot")
+            Commands.defer(() -> {
+                Pose2d robotPose = drivetrain.getState().Pose;
+                if (robotPose.getX() > 5.25) {
+                    // Far shot mode - Y'ye göre hedef belirle
+                    Translation2d target = robotPose.getY() > 4.035
+                        ? new Translation2d(2.0, 6.0)
+                        : new Translation2d(2.0, 2.0);
+                    System.out.println("RT: Far shot mode - hedef: " + target);
+
+                    return Commands.parallel(
+                        // Belirli noktaya aim
+                        drivetrain.applyRequest(() -> {
+                            Pose2d pose = drivetrain.getState().Pose;
+                            Translation2d toTarget = target.minus(pose.getTranslation());
+                            Rotation2d angleToTarget = new Rotation2d(toTarget.getX(), toTarget.getY());
+                            double error = AimToHubCommand.getModuloRotation(
+                                angleToTarget.getDegrees() - pose.getRotation().getDegrees()
+                            );
+                            double steering = 0.08 * error;
+                            if (Math.abs(error) > 1.0) {
+                                steering += Math.signum(error) * 0.02;
+                            }
+                            steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
+                            return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
+                                .withVelocityY(-joystick.getLeftX() * MaxSpeed)
+                                .withRotationalRate(steering);
+                        }),
+                        hood.setAngleCommand(0.0), // Hood 0°
+                        flywheel.runVelocityCommand(351.5), // %95 hız (0.95 * 370)
+                        Commands.waitSeconds(0.5)
+                            .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                    ).withName("RT: Far Shot");
+                } else {
+                    // Normal shooting mode
+                    return Commands.parallel(
+                        new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
+                        hood.runTrackTargetCommand(),
+                        flywheel.runTrackTargetCommand(),
+                        Commands.waitSeconds(0.5)
+                            .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                    ).withName("RT: Aim + Hood + Flywheel + Feeder");
+                }
+            }, java.util.Set.of(drivetrain, hood, flywheel, feeder))
         );
 
-        // LT (sol trigger): Intake - basılı tut, Kraken X60 motor çalışır; bırak, motor
-        // durur
+        // LT (sol trigger): Intake - basılı tut, bırak durur
         joystick.leftTrigger().whileTrue(
                 Commands.parallel(
-                        intakeMotor.intakeCommand(), // Uses INTAKE_SPEED constant (30%)
-                        ledSubsystem.run(ledSubsystem::setBlinkWhite).withName("LED: Blink White") // Intake tuşuna
-                                                                                                   // basılıyken Beyaz
-                                                                                                   // Yanıp Sönme
-                ));
+                        intakeMotor.intakeCommand(),
+                        ledSubsystem.run(ledSubsystem::setBlinkWhite).withName("LED: Blink White")
+                ).withName("LT: Intake"));
 
         // X tuşu (Klavye - Simülasyon): AutoTrench test için
         // Simülasyonda klavyeden X'e basarak test edebilirsiniz - SAĞ trench (SMART direction)

@@ -179,41 +179,33 @@ public class AutoTrench {
      * @return Command that executes appropriate left trench sequence for current alliance
      */
     public static Command allianceAwareLeftTrenchSequence(CommandSwerveDrivetrain drivetrain) {
-        return Commands.either(
-            // Blue alliance
-            Commands.defer(() -> {
-                double robotX = drivetrain.getState().Pose.getX();
+        return Commands.defer(() -> {
+            var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
+                .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
+            boolean isBlue = alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
+            double robotX = drivetrain.getState().Pose.getX();
+
+            if (isBlue) {
                 if (robotX < 4.0) {
-                    // Robot sahada geriden, ters yönden git (3.5 -> 5.7)
-                    System.out.println("🔄 Robot X < 4.0, TERS yön: 3.5 -> 5.7");
+                    System.out.println("🔄 BLUE Robot X < 4.0, TERS yön: 3.5 -> 5.7");
                     return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_2, BLUE_LEFT_TRENCH_POS_1);
                 } else {
-                    // Robot sahada önden, normal yön (5.7 -> 3.5)
-                    System.out.println("➡️ Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
+                    System.out.println("➡️ BLUE Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
                     return moveToPoseSequence(BLUE_LEFT_TRENCH_POS_1, BLUE_LEFT_TRENCH_POS_2);
                 }
-            }, java.util.Set.of()),
-            // Red alliance
-            Commands.defer(() -> {
-                double robotX = drivetrain.getState().Pose.getX();
+            } else {
                 if (robotX > 12.518) {
-                    // Robot Red tarafında geriden, ters yönden git (13.018 -> 10.818)
-                    System.out.println("🔄 Robot X > 12.518, TERS yön: 13.018 -> 10.818");
+                    System.out.println("🔄 RED Robot X > 12.518, TERS yön: 13.018 -> 10.818");
                     return moveToPoseSequence(RED_LEFT_TRENCH_POS_2, RED_LEFT_TRENCH_POS_1);
                 } else {
-                    // Robot Red tarafında önden, normal yön (10.818 -> 13.018)
-                    System.out.println("➡️ Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
+                    System.out.println("➡️ RED Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
                     return moveToPoseSequence(RED_LEFT_TRENCH_POS_1, RED_LEFT_TRENCH_POS_2);
                 }
-            }, java.util.Set.of()),
-            () -> {
-                var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
-                    .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
-                return alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
             }
-        ).withName("Alliance-Aware Left Trench Sequence")
-         .beforeStarting(() -> System.out.println("🚀 AutoTrench SOL BAŞLADI!"))
-         .andThen(() -> System.out.println("✅ AutoTrench SOL TAMAMLANDI!"));
+        }, java.util.Set.of(drivetrain))
+        .withName("Alliance-Aware Left Trench Sequence")
+        .beforeStarting(() -> System.out.println("🚀 AutoTrench SOL BAŞLADI!"))
+        .andThen(() -> System.out.println("✅ AutoTrench SOL TAMAMLANDI!"));
     }
 
     /**
@@ -226,40 +218,32 @@ public class AutoTrench {
      * @return Command that executes appropriate right trench sequence for current alliance
      */
     public static Command allianceAwareRightTrenchSequence(CommandSwerveDrivetrain drivetrain) {
-        return Commands.either(
-            // Blue alliance
-            Commands.defer(() -> {
-                double robotX = drivetrain.getState().Pose.getX();
+        return Commands.defer(() -> {
+            var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
+                .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
+            boolean isBlue = alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
+            double robotX = drivetrain.getState().Pose.getX();
+
+            if (isBlue) {
                 if (robotX < 4.0) {
-                    // Robot sahada geriden, ters yönden git (3.5 -> 5.7)
-                    System.out.println("🔄 Robot X < 4.0, TERS yön: 3.5 -> 5.7");
+                    System.out.println("🔄 BLUE Robot X < 4.0, TERS yön: 3.5 -> 5.7");
                     return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_2, BLUE_RIGHT_TRENCH_POS_1);
                 } else {
-                    // Robot sahada önden, normal yön (5.7 -> 3.5)
-                    System.out.println("➡️ Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
+                    System.out.println("➡️ BLUE Robot X >= 4.0, NORMAL yön: 5.7 -> 3.5");
                     return moveToPoseSequence(BLUE_RIGHT_TRENCH_POS_1, BLUE_RIGHT_TRENCH_POS_2);
                 }
-            }, java.util.Set.of()),
-            // Red alliance
-            Commands.defer(() -> {
-                double robotX = drivetrain.getState().Pose.getX();
+            } else {
                 if (robotX > 12.518) {
-                    // Robot Red tarafında geriden, ters yönden git (13.018 -> 10.818)
-                    System.out.println("🔄 Robot X > 12.518, TERS yön: 13.018 -> 10.818");
+                    System.out.println("🔄 RED Robot X > 12.518, TERS yön: 13.018 -> 10.818");
                     return moveToPoseSequence(RED_RIGHT_TRENCH_POS_2, RED_RIGHT_TRENCH_POS_1);
                 } else {
-                    // Robot Red tarafında önden, normal yön (10.818 -> 13.018)
-                    System.out.println("➡️ Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
+                    System.out.println("➡️ RED Robot X <= 12.518, NORMAL yön: 10.818 -> 13.018");
                     return moveToPoseSequence(RED_RIGHT_TRENCH_POS_1, RED_RIGHT_TRENCH_POS_2);
                 }
-            }, java.util.Set.of()),
-            () -> {
-                var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance()
-                    .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue);
-                return alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue;
             }
-        ).withName("Alliance-Aware Right Trench Sequence")
-         .beforeStarting(() -> System.out.println("🚀 AutoTrench SAĞ BAŞLADI!"))
-         .andThen(() -> System.out.println("✅ AutoTrench SAĞ TAMAMLANDI!"));
+        }, java.util.Set.of(drivetrain))
+        .withName("Alliance-Aware Right Trench Sequence")
+        .beforeStarting(() -> System.out.println("🚀 AutoTrench SAĞ BAŞLADI!"))
+        .andThen(() -> System.out.println("✅ AutoTrench SAĞ TAMAMLANDI!"));
     }
 }

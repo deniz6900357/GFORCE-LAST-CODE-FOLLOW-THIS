@@ -25,29 +25,26 @@ public final class ShooterConstants {
         public static final int MOTOR_ID = 35;
 
         // Motor inversion
-        public static final boolean INVERT_MOTOR = false;
+        public static final boolean INVERT_MOTOR = true;
 
-        // Velocity PID gains (tune these for your robot)
-        public static final double KP = 0.1;
+        // Velocity PID gains (MA 6328 values)
+        public static final double KP = 0.4;
         public static final double KI = 0.0;
         public static final double KD = 0.0;
-        public static final double KV = 0.12; // Feedforward gain (volts per rad/s)
-        public static final double KS = 0.2;  // Static friction compensation (volts)
+        public static final double KV = 0.019; // Feedforward gain (volts per rad/s)
+        public static final double KS = 0.22;  // Static friction compensation (volts)
 
-        // Torque current control (for bang-bang mode)
-        public static final double TORQUE_CURRENT_SCALE = 2.0; // Amps per rad/s
-
-        // Velocity tolerance (rad/s)
-        public static final double VELOCITY_TOLERANCE = 20.0; // ~3.2 RPS
+        // Slew rate limiter - max hızlanma (rad/s²)
+        public static final double MAX_ACCELERATION = 250.0;
 
         // Gear ratio (motor rotations : flywheel rotations)
         public static final double GEAR_RATIO = 1.0; // 1:1 direct drive
 
-        // Preset velocities (rad/s) - tune based on testing
+        // Preset velocities (rad/s)
         public static final double IDLE_VELOCITY = 0.0;
-        public static final double FENDER_VELOCITY = 200.0;    // Close shot
-        public static final double MID_RANGE_VELOCITY = 350.0; // Medium distance
-        public static final double FAR_VELOCITY = 450.0;       // Far shot
+        public static final double FENDER_VELOCITY = 235.0;   // Close shot
+        public static final double MID_RANGE_VELOCITY = 276.0; // Medium distance
+        public static final double FAR_VELOCITY = 400.0;       // Far shot
     }
 
     /**
@@ -65,9 +62,9 @@ public final class ShooterConstants {
         public static final double KI = 0.0;
         public static final double KD = 300.0;   // From MA simulation
 
-        // Angle limits (radians)
-        public static final double MIN_ANGLE_RAD = Math.toRadians(19.0); // Most flat
-        public static final double MAX_ANGLE_RAD = Math.toRadians(51.0); // Most lofted
+        // Angle limits (radians) - MA 6328 values
+        public static final double MIN_ANGLE_RAD = Math.toRadians(0.0); // Most flat
+        public static final double MAX_ANGLE_RAD = Math.toRadians(12.0); // Most lofted
 
         // Position tolerance (radians)
         public static final double POSITION_TOLERANCE = Math.toRadians(1.0); // ~1 degree
@@ -78,11 +75,11 @@ public final class ShooterConstants {
         // NOTE: MA original was 80:1, but our robot's mechanism requires 166:1
         public static final double GEAR_RATIO = 166.0; // Motor rotations per mechanism rotation
 
-        // Preset angles (radians) - tune based on testing
-        public static final double FENDER_ANGLE = Math.toRadians(19.0);    // Close shot
-        public static final double MID_RANGE_ANGLE = Math.toRadians(30.0); // Medium distance
-        public static final double FAR_ANGLE = Math.toRadians(45.0);       // Far shot
-        public static final double STOW_ANGLE = Math.toRadians(19.0);      // Stowed position
+        // Preset angles (radians)
+        public static final double FENDER_ANGLE = Math.toRadians(0.0);     // Close shot
+        public static final double MID_RANGE_ANGLE = Math.toRadians(6.0);   // Medium distance
+        public static final double FAR_ANGLE = Math.toRadians(12.0);       // Far shot
+        public static final double STOW_ANGLE = Math.toRadians(0.0);      // Stowed position
     }
 
     /**

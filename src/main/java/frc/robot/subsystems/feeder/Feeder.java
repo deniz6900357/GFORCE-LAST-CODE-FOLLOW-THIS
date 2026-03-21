@@ -16,7 +16,7 @@ public class Feeder extends SubsystemBase {
     private final FeederIO.FeederIOInputs inputs = new FeederIO.FeederIOInputs();
 
     // Default feed speed
-    private static final double DEFAULT_FEED_SPEED = 0.1; // 10% forward
+    private static final double DEFAULT_FEED_SPEED = 1.0; // 100% forward
 
     /**
      * Creates a new Feeder subsystem.
