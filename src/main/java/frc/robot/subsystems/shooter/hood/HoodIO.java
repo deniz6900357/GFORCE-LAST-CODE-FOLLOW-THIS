@@ -26,12 +26,15 @@ public interface HoodIO {
   public static enum HoodIOOutputMode {
     BRAKE,
     COAST,
+    OPEN_LOOP,
     CLOSED_LOOP
   }
 
   public static class HoodIOOutputs {
 
     public HoodIOOutputMode mode = HoodIOOutputMode.BRAKE;
+    // Open loop control
+    public double appliedVolts = 0.0;
     // Closed loop control
     public double positionRad = 0.0;
     public double velocityRadsPerSec = 0.0;

@@ -40,7 +40,6 @@ import frc.robot.subsystems.feeder.FeederIOReal;
 import frc.robot.subsystems.feeder.FeederIOSim;
 import frc.robot.subsystems.climb.Climb;
 import frc.robot.subsystems.partimodu.LED;
-import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotBase;
 
 public class RobotContainer {
@@ -60,7 +59,7 @@ public class RobotContainer {
     private final Telemetry logger = new Telemetry(MaxSpeed);
 
     private final CommandXboxController joystick = new CommandXboxController(0);
-    private final Joystick climbJoystick = new Joystick(1);
+    private final CommandXboxController climbJoystick = new CommandXboxController(1);
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
 
@@ -124,18 +123,17 @@ public class RobotContainer {
 
         Pose2d startPose;
         if (alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
-            // Blue alliance: Mevcut rotasyonu koru (gyro'yu bozmadan)
             startPose = new Pose2d(4.6, 2.35, currentRotation);
+            drivetrain.resetPose(startPose);
+            drivetrain.seedFieldCentric(new Rotation2d());
             System.out.println("Blue Alliance - Robot initialized at position: " + startPose);
         } else {
-            // Red alliance: Mevcut rotasyonu koru
             startPose = new Pose2d(11.9, 2.35, currentRotation);
+            drivetrain.resetPose(startPose);
+            drivetrain.seedFieldCentric(new Rotation2d());
             System.out.println("Red Alliance - Robot initialized at position: " + startPose);
         }
-        drivetrain.resetPose(startPose);
 
-        // Field-centric direction'ı alliance'a göre ayarla (operator perspective)
-        // Bu sadece joystick input'larının referans frame'ini değiştirir, gyro'yu etkilemez
         System.out.println("✅ Initial pose set. Gyro preserved at: " + currentRotation.getDegrees() + "°");
     }
 
@@ -183,7 +181,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setDutyCycle(0.9),
+                    () -> intakeMotor.setDutyCycle(1.0),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(5.0).withName("Auto: Intake 5s"),
@@ -194,7 +192,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake2",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setDutyCycle(0.9),
+                    () -> intakeMotor.setDutyCycle(1.0),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(2.0).withName("Auto: Intake 2s"),
@@ -204,7 +202,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake3",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setDutyCycle(0.9),
+                    () -> intakeMotor.setDutyCycle(1.0),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(3.0).withName("Auto: Intake 3s"),
@@ -214,7 +212,7 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake4",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setDutyCycle(0.9),
+                    () -> intakeMotor.setDutyCycle(1.0),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(4.0).withName("Auto: Intake 4s"),
@@ -224,10 +222,21 @@ public class RobotContainer {
         NamedCommands.registerCommand("Intake5",
             Commands.defer(
                 () -> Commands.startEnd(
-                    () -> intakeMotor.setDutyCycle(0.9),
+                    () -> intakeMotor.setDutyCycle(1.0),
                     intakeMotor::stop,
                     intakeMotor
                 ).withTimeout(5.0).withName("Auto: Intake 5s"),
+                java.util.Set.of(intakeMotor)
+            )
+        );
+
+        NamedCommands.registerCommand("Intake75",
+            Commands.defer(
+                () -> Commands.startEnd(
+                    () -> intakeMotor.setDutyCycle(1.0),
+                    intakeMotor::stop,
+                    intakeMotor
+                ).withTimeout(7.5).withName("Auto: Intake 7.5s"),
                 java.util.Set.of(intakeMotor)
             )
         );
@@ -239,11 +248,18 @@ public class RobotContainer {
                 java.util.Set.of(intakeMotor)
             )
         );
+
+        NamedCommands.registerCommand("ClimbUp",
+            Commands.runOnce(() -> climb.setPosition(105), climb).withName("Auto: Climb Up")
+        );
+        NamedCommands.registerCommand("ClimbDown",
+            Commands.runOnce(() -> climb.setPosition(15), climb).withName("Auto: Climb Down")
+        );
     }
 
     private void configureBindings() {
         // Varsayılan olarak LED'ler düz mavi yansın
-        ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setHeartbeatFastBlue).withName("LED: Default Heartbeat Fast Blue"));
+        ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setBreathBlue).withName("LED: Default Breath Blue"));
 
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
@@ -273,17 +289,6 @@ public class RobotContainer {
             AutoTrench.allianceAwareRightTrenchSequence(drivetrain)
         );
 
-        // Right Bumper (RB): AutoTrench Sağ Geçit
-        // Basılı tut = çalışır, bırak = durur
-        joystick.button(8).whileTrue(
-            AutoTrench.allianceAwareRightTrenchSequence(drivetrain)
-        );
-
-        // Left Bumper (LB): AutoTrench Sol Geçit
-        // Basılı tut = çalışır, bırak = durur
-        joystick.button(7).whileTrue(
-            AutoTrench.allianceAwareLeftTrenchSequence(drivetrain)
-        );
 
         // A button: Auto-aim + Hood tracking (Hub'a döner VE hood açısı ayarlanır)
         // Basılı tuttuğun sürece: Hub'a döner VE hood açısı ayarlanır (PARALEL)
@@ -330,51 +335,93 @@ public class RobotContainer {
             }).ignoringDisable(true)
         );
 
-        // RT (sağ trigger): Koşullu atış
-        // X > 5.25 ise: sabit noktaya aim + hood 0° + flywheel %80 (296 rad/s) + feeder
-        // X <= 5.25 ise: normal AimToHub + Hood Track + Flywheel Track + Feeder
+        // RT (sağ trigger): Koşullu atış (Alliance-aware)
+        // Blue Alliance: X > 4.6 → sabit noktaya aim + hood 0° + flywheel %90 + feeder
+        //                X <= 4.6 → normal AimToHub + Hood/Flywheel Track + Feeder
+        // Red Alliance:  X > 12 → sabit noktaya aim + hood 0° + flywheel %90 + feeder
+        //                X <= 12 → hiçbir şey yapma
         joystick.rightTrigger().whileTrue(
             Commands.defer(() -> {
                 Pose2d robotPose = drivetrain.getState().Pose;
-                if (robotPose.getX() > 5.25) {
-                    // Far shot mode - Y'ye göre hedef belirle
-                    Translation2d target = robotPose.getY() > 4.035
-                        ? new Translation2d(2.0, 6.0)
-                        : new Translation2d(2.0, 2.0);
-                    System.out.println("RT: Far shot mode - hedef: " + target);
+                boolean isRed = edu.wpi.first.wpilibj.DriverStation.getAlliance()
+                    .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue)
+                    == edu.wpi.first.wpilibj.DriverStation.Alliance.Red;
 
-                    return Commands.parallel(
-                        // Belirli noktaya aim
-                        drivetrain.applyRequest(() -> {
-                            Pose2d pose = drivetrain.getState().Pose;
-                            Translation2d toTarget = target.minus(pose.getTranslation());
-                            Rotation2d angleToTarget = new Rotation2d(toTarget.getX(), toTarget.getY());
-                            double error = AimToHubCommand.getModuloRotation(
-                                angleToTarget.getDegrees() - pose.getRotation().getDegrees()
-                            );
-                            double steering = 0.08 * error;
-                            if (Math.abs(error) > 1.0) {
-                                steering += Math.signum(error) * 0.02;
-                            }
-                            steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
-                            return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
-                                .withVelocityY(-joystick.getLeftX() * MaxSpeed)
-                                .withRotationalRate(steering);
-                        }),
-                        hood.setAngleCommand(0.0), // Hood 0°
-                        flywheel.runVelocityCommand(351.5), // %95 hız (0.95 * 370)
-                        Commands.waitSeconds(0.5)
-                            .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                    ).withName("RT: Far Shot");
+                if (isRed) {
+                    if (robotPose.getX() < 12.0) {
+                        // Red Alliance far shot - Y'ye göre hedef belirle (predictive)
+                        Translation2d target = robotPose.getY() > 4.02
+                            ? new Translation2d(14.54, 6.0)
+                            : new Translation2d(14.54, 2.0);
+                        System.out.println("RT: Red far shot - hedef: " + target);
+
+                        return Commands.parallel(
+                            drivetrain.applyRequest(() -> {
+                                Rotation2d targetAngle = frc.robot.subsystems.shooter.LaunchCalculator
+                                    .getInstance().getDriveAngleForTarget(target).plus(Rotation2d.k180deg);
+                                double error = AimToHubCommand.getModuloRotation(
+                                    targetAngle.getDegrees() - drivetrain.getState().Pose.getRotation().getDegrees()
+                                );
+                                double steering = 0.08 * error;
+                                if (Math.abs(error) > 1.0) steering += Math.signum(error) * 0.02;
+                                steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
+                                return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
+                                    .withVelocityY(-joystick.getLeftX() * MaxSpeed)
+                                    .withRotationalRate(steering);
+                            }),
+                            hood.setAngleCommand(0.0),
+                            flywheel.runVelocityCommand(333.0),
+                            Commands.waitSeconds(0.5)
+                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                        ).withName("RT: Red Far Shot");
+                    } else {
+                        // Red Alliance, X >= 12: AimToHub + Hood/Flywheel track (Blue normal moduyla aynı)
+                        return Commands.parallel(
+                            new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
+                            hood.runTrackTargetCommand(),
+                            flywheel.runTrackTargetCommand(),
+                            Commands.waitSeconds(0.5)
+                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                        ).withName("RT: Red Hub Shot");
+                    }
                 } else {
-                    // Normal shooting mode
-                    return Commands.parallel(
-                        new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
-                        hood.runTrackTargetCommand(),
-                        flywheel.runTrackTargetCommand(),
-                        Commands.waitSeconds(0.5)
-                            .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                    ).withName("RT: Aim + Hood + Flywheel + Feeder");
+                    // Blue Alliance
+                    if (robotPose.getX() > 4.6) {
+                        // Blue far shot - Y'ye göre hedef belirle (predictive)
+                        Translation2d target = robotPose.getY() > 4.02
+                            ? new Translation2d(2.0, 6.0)
+                            : new Translation2d(2.0, 2.0);
+                        System.out.println("RT: Blue far shot - hedef: " + target);
+
+                        return Commands.parallel(
+                            drivetrain.applyRequest(() -> {
+                                Rotation2d targetAngle = frc.robot.subsystems.shooter.LaunchCalculator
+                                    .getInstance().getDriveAngleForTarget(target).plus(Rotation2d.k180deg);
+                                double error = AimToHubCommand.getModuloRotation(
+                                    targetAngle.getDegrees() - drivetrain.getState().Pose.getRotation().getDegrees()
+                                );
+                                double steering = 0.08 * error;
+                                if (Math.abs(error) > 1.0) steering += Math.signum(error) * 0.02;
+                                steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
+                                return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
+                                    .withVelocityY(-joystick.getLeftX() * MaxSpeed)
+                                    .withRotationalRate(steering);
+                            }),
+                            hood.setAngleCommand(0.0),
+                            flywheel.runVelocityCommand(333.0),
+                            Commands.waitSeconds(0.5)
+                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                        ).withName("RT: Blue Far Shot");
+                    } else {
+                        // Blue Alliance, X <= 4.6: normal AimToHub + track
+                        return Commands.parallel(
+                            new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
+                            hood.runTrackTargetCommand(),
+                            flywheel.runTrackTargetCommand(),
+                            Commands.waitSeconds(0.5)
+                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+                        ).withName("RT: Aim + Hood + Flywheel + Feeder");
+                    }
                 }
             }, java.util.Set.of(drivetrain, hood, flywheel, feeder))
         );
@@ -392,10 +439,23 @@ public class RobotContainer {
         new Trigger(() -> keyboard.getRawButton(27)) // X tuşu (button 27)
             .onTrue(AutoTrench.allianceAwareRightTrenchSequence(drivetrain));
 
-        // Climb joystick (kanal 1) sol stick aşağı (axis 1 < -0.1) → climb motorları çalışır
-        new Trigger(() -> climbJoystick.getRawAxis(1) < -0.1)
-            .whileTrue(Commands.run(() -> climb.setSpeed(-climbJoystick.getRawAxis(1)), climb)
-                .finallyDo(climb::stop));
+        // Climb controller (kanal 1): sol stick → motor 41, sağ stick → motor 42
+        new Trigger(() -> Math.abs(climbJoystick.getLeftY()) > 0.1 || Math.abs(climbJoystick.getRightY()) > 0.1)
+            .whileTrue(Commands.run(() -> climb.setSpeedIndependent(
+                -climbJoystick.getLeftY(),
+                -climbJoystick.getRightY()
+            ), climb).finallyDo(climb::stop));
+
+        // Sol trigger → intake tersine
+        climbJoystick.leftTrigger().whileTrue(intakeMotor.intakeCommand(-100.0));
+
+        // X tuşu → hood homing (hardstop'a gidip sıfırla)
+        climbJoystick.x().onTrue(hood.zeroCommand());
+
+        // POV Up → encoder 104'e git, POV Down → 30'a, POV Left → 0'a
+        climbJoystick.povUp().onTrue(Commands.runOnce(() -> climb.setPosition(105), climb));
+        climbJoystick.povDown().onTrue(Commands.runOnce(() -> climb.setPosition(15), climb));
+        climbJoystick.povLeft().onTrue(Commands.runOnce(() -> climb.setPosition(0), climb));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }

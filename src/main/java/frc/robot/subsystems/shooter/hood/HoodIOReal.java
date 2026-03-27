@@ -10,6 +10,7 @@ package frc.robot.subsystems.shooter.hood;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
+import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -30,6 +31,7 @@ public class HoodIOReal implements HoodIO {
     // Control requests
     private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0.0);
     private final NeutralOut neutralRequest = new NeutralOut();
+    private final VoltageOut voltageRequest = new VoltageOut(0.0);
 
     /**
      * Creates a new HoodIOReal instance.
@@ -89,6 +91,10 @@ public class HoodIOReal implements HoodIO {
             case BRAKE:
             case COAST:
                 motor.setControl(neutralRequest);
+                break;
+
+            case OPEN_LOOP:
+                motor.setControl(voltageRequest.withOutput(outputs.appliedVolts));
                 break;
 
             case CLOSED_LOOP:

@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.shooter.LaunchCalculator;
 
 import java.util.function.DoubleSupplier;
 
@@ -167,23 +168,22 @@ public class AimToHubCommand extends Command {
         // Get robot pose from drivetrain odometry (fused with vision)
         Pose2d robotPose = drivetrain.getState().Pose;
 
-        // Get current alliance and select hub center
-        Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
-        Translation2d hubCenter = (currentAlliance == Alliance.Blue)
-            ? BLUE_HUB_CENTER
-            : RED_HUB_CENTER;
-
-        // Robot merkezinden hub'a olan açıyı hesapla
-        Translation2d robotToHub = hubCenter.minus(robotPose.getTranslation());
-        double distanceToHub = robotToHub.getNorm();
-        Rotation2d angleToHub = new Rotation2d(robotToHub.getX(), robotToHub.getY());
+        // LaunchCalculator'dan predictive driveAngle al
+        // (20 iterasyon lookahead + faz gecikmesi + launcher offset dahil)
+        var launchParams = LaunchCalculator.getInstance().getParameters();
+        Rotation2d targetAngle = launchParams.driveAngle().plus(Rotation2d.k180deg);
+        double distanceToHub = robotPose.getTranslation().getDistance(
+            (DriverStation.getAlliance().orElse(Alliance.Red) == Alliance.Blue)
+                ? BLUE_HUB_CENTER : RED_HUB_CENTER);
 
         // Calculate rotation error (how much robot needs to turn)
         double rotationError = getModuloRotation(
-            angleToHub.getDegrees() - robotPose.getRotation().getDegrees()
+            targetAngle.getDegrees() - robotPose.getRotation().getDegrees()
         );
 
         // Debug: Show aiming info
+        Alliance currentAlliance = DriverStation.getAlliance().orElse(Alliance.Red);
+        Translation2d hubCenter = (currentAlliance == Alliance.Blue) ? BLUE_HUB_CENTER : RED_HUB_CENTER;
         SmartDashboard.putNumber("AimToHub/HubCenterX", hubCenter.getX());
         SmartDashboard.putNumber("AimToHub/HubCenterY", hubCenter.getY());
         SmartDashboard.putString("AimToHub/Alliance", currentAlliance.toString());
@@ -216,7 +216,7 @@ public class AimToHubCommand extends Command {
 
         // Extended debug output
         SmartDashboard.putNumber("AimToHub/RotationError", rotationError);
-        SmartDashboard.putNumber("AimToHub/TargetAngle", angleToHub.getDegrees());
+        SmartDashboard.putNumber("AimToHub/TargetAngle", targetAngle.getDegrees());
         SmartDashboard.putNumber("AimToHub/RobotRotation", robotPose.getRotation().getDegrees());
         SmartDashboard.putNumber("AimToHub/SteeringAdjust", steeringAdjust);
         SmartDashboard.putNumber("AimToHub/DistanceToHub", distanceToHub);

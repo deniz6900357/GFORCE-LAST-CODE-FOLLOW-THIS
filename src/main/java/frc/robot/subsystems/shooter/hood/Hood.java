@@ -10,6 +10,7 @@ package frc.robot.subsystems.shooter.hood;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.shooter.ShooterConstants;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -31,11 +32,17 @@ public class Hood extends FullSubsystem {
   private static final LoggedTunableNumber kD = new LoggedTunableNumber("Hood/kD");
   private static final LoggedTunableNumber toleranceDeg =
       new LoggedTunableNumber("Hood/ToleranceDeg");
+  private static final LoggedTunableNumber homingVolts =
+      new LoggedTunableNumber("Hood/HomingVolts");
+  private static final LoggedTunableNumber homingVelocityThreshold =
+      new LoggedTunableNumber("Hood/HomingVelocityThreshold");
 
   static {
-    kP.initDefault(100.0);  // Motion Magic onboard PID (tune as needed)
-    kD.initDefault(5.0);    // Motion Magic damping (tune as needed)
+    kP.initDefault(100.0);
+    kD.initDefault(5.0);
     toleranceDeg.initDefault(1.0);
+    homingVolts.initDefault(-2.0);
+    homingVelocityThreshold.initDefault(0.05);
   }
 
   private final HoodIO io;
@@ -167,6 +174,15 @@ public class Hood extends FullSubsystem {
   }
 
   public Command zeroCommand() {
-    return runOnce(this::zero).ignoringDisable(true);
+    return run(() -> {
+          outputs.appliedVolts = homingVolts.get();
+          outputs.mode = HoodIOOutputMode.OPEN_LOOP;
+          hoodZeroed = false;
+        })
+        .raceWith(
+            Commands.waitSeconds(0.5)
+                .andThen(Commands.waitUntil(
+                    () -> Math.abs(inputs.velocityRadsPerSec) <= homingVelocityThreshold.get())))
+        .andThen(runOnce(this::zero));
   }
 }

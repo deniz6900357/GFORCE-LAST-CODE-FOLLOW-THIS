@@ -307,8 +307,8 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         }
 
         // Process both Limelights
-        processLimelightPose(LL_SHOOTER, "Vision/Shooter");
-        processLimelightPose(LL_RIGHT_FRONT, "Vision/RightFront");
+        processLimelightPose(LL_SHOOTER, "Vision/Shooter", null);
+        processLimelightPose(LL_RIGHT_FRONT, "Vision/RightFront", new int[]{15, 16, 31, 32}); // Limelight 3A
     }
 
     /**
@@ -316,8 +316,9 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      *
      * @param limelightName The Limelight NetworkTables name
      * @param dashboardPrefix SmartDashboard key prefix for telemetry
+     * @param allowedTagIds Sadece bu ID'lerden biri görülürse kabul et; null ise filtre yok
      */
-    private void processLimelightPose(String limelightName, String dashboardPrefix) {
+    private void processLimelightPose(String limelightName, String dashboardPrefix, int[] allowedTagIds) {
         LimelightHelpers.PoseEstimate poseEstimate =
             LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(limelightName);
 
@@ -330,6 +331,24 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
             SmartDashboard.putNumber(dashboardPrefix + "/AvgTagDist", poseEstimate.avgTagDist);
             SmartDashboard.putNumber(dashboardPrefix + "/PoseX", poseEstimate.pose.getX());
             SmartDashboard.putNumber(dashboardPrefix + "/PoseY", poseEstimate.pose.getY());
+        }
+
+        // Tag ID filtresi: izin verilen ID'lerden biri görülmüyorsa reddet
+        if (poseEstimate != null && allowedTagIds != null) {
+            boolean found = false;
+            if (poseEstimate.rawFiducials != null) {
+                outer:
+                for (LimelightHelpers.RawFiducial f : poseEstimate.rawFiducials) {
+                    for (int id : allowedTagIds) {
+                        if (f.id == id) { found = true; break outer; }
+                    }
+                }
+            }
+            if (!found) {
+                SmartDashboard.putBoolean(dashboardPrefix + "/Accepted", false);
+                SmartDashboard.putBoolean(dashboardPrefix + "/HasValidData", false);
+                return;
+            }
         }
 
         if (poseEstimate != null && poseEstimate.tagCount > 0) {

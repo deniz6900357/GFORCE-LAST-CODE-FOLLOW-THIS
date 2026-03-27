@@ -18,7 +18,6 @@ import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
 import edu.wpi.first.math.interpolation.InverseInterpolator;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.FieldConstants;
 import frc.robot.RobotConstants;
@@ -56,7 +55,6 @@ public class LaunchCalculator {
 
   private static double minDistance;
   private static double maxDistance;
-  private static double maxDistanceForReverseLaunch;
   private static double phaseDelay;
   private static final InterpolatingTreeMap<Double, Rotation2d> hoodAngleMap =
       new InterpolatingTreeMap<>(InverseInterpolator.forDouble(), Rotation2d::interpolate);
@@ -68,8 +66,6 @@ public class LaunchCalculator {
   static {
     minDistance = 0.96;
     maxDistance = 4.84;
-    // TODO: find a real value for this
-    maxDistanceForReverseLaunch = 2.0;
     phaseDelay = 0.03;
 
     // Hood açıları - 2m'ye kadar 0°, sonra kademeli 12°'ye çıkış
@@ -85,18 +81,18 @@ public class LaunchCalculator {
     hoodAngleMap.put(4.35, Rotation2d.fromDegrees(10.5));
     hoodAngleMap.put(4.84, Rotation2d.fromDegrees(12.0));
 
-    // Flywheel hızları - 230'dan 350 rad/s'ye
-    flywheelSpeedMap.put(0.96, 230.0);
-    flywheelSpeedMap.put(1.16, 236.0);
-    flywheelSpeedMap.put(1.58, 244.0);
-    flywheelSpeedMap.put(2.00, 255.0);
-    flywheelSpeedMap.put(2.37, 267.0);
-    flywheelSpeedMap.put(2.70, 280.0);
-    flywheelSpeedMap.put(2.94, 291.0);
-    flywheelSpeedMap.put(3.48, 309.0);
-    flywheelSpeedMap.put(3.92, 325.0);
-    flywheelSpeedMap.put(4.35, 339.0);
-    flywheelSpeedMap.put(4.84, 350.0);
+    // Flywheel hızları - 225'ten 325 rad/s'ye
+    flywheelSpeedMap.put(0.96, 225.0);
+    flywheelSpeedMap.put(1.16, 230.0);
+    flywheelSpeedMap.put(1.58, 236.0);
+    flywheelSpeedMap.put(2.00, 246.0);
+    flywheelSpeedMap.put(2.37, 255.0);
+    flywheelSpeedMap.put(2.70, 267.0);
+    flywheelSpeedMap.put(2.94, 275.0);
+    flywheelSpeedMap.put(3.48, 291.0);
+    flywheelSpeedMap.put(3.92, 304.0);
+    flywheelSpeedMap.put(4.35, 315.0);
+    flywheelSpeedMap.put(4.84, 325.0);
 
     timeOfFlightMap.put(5.68, 1.16);
     timeOfFlightMap.put(4.55, 1.12);
@@ -155,13 +151,7 @@ public class LaunchCalculator {
     // Calculate parameters accounted for imparted velocity
     Rotation2d driveAngle =
         target.minus(lookaheadPose.getTranslation()).getAngle().plus(Rotation2d.kPi);
-    if (lookaheadLauncherToTargetDistance < maxDistanceForReverseLaunch) {
-      var robotAngle = RobotState.getInstance().getRotation();
-      driveAngle =
-          robotAngle.getRadians() > target.getAngle().getRadians() + Units.degreesToRadians(90)
-              ? driveAngle
-              : driveAngle.plus(Rotation2d.kPi);
-    }
+
     double hoodAngle = hoodAngleMap.get(lookaheadLauncherToTargetDistance).getRadians();
 
     if (lastDriveAngle == null) lastDriveAngle = driveAngle;
@@ -199,5 +189,46 @@ public class LaunchCalculator {
 
   public void clearLaunchingParameters() {
     latestParameters = null;
+  }
+
+  /**
+   * Sabit bir hedef noktası için predictive drive angle hesaplar.
+   * LaunchCalculator'ın hub aiming mantığının aynısını kullanır (20 iterasyon lookahead).
+   *
+   * @param target Field-relative hedef koordinatı
+   * @return Robotun döneceği predictive açı
+   */
+  public Rotation2d getDriveAngleForTarget(Translation2d target) {
+    Pose2d estimatedPose = RobotState.getInstance().getEstimatedPose();
+    ChassisSpeeds robotRelativeVelocity = RobotState.getInstance().getRobotVelocity();
+    estimatedPose =
+        estimatedPose.exp(
+            new Twist2d(
+                robotRelativeVelocity.vxMetersPerSecond * phaseDelay,
+                robotRelativeVelocity.vyMetersPerSecond * phaseDelay,
+                robotRelativeVelocity.omegaRadiansPerSecond * phaseDelay));
+
+    Translation2d launcherOffset = GeomUtil.toTranslation2d(robotToLauncher.getTranslation());
+    Pose2d launcherPosition = new Pose2d(
+        estimatedPose.getTranslation().plus(launcherOffset),
+        estimatedPose.getRotation());
+
+    double launcherVelocityX = RobotState.getInstance().getFieldVelocity().vxMetersPerSecond;
+    double launcherVelocityY = RobotState.getInstance().getFieldVelocity().vyMetersPerSecond;
+
+    Pose2d lookaheadPose = launcherPosition;
+    double lookaheadDist = target.getDistance(launcherPosition.getTranslation());
+
+    for (int i = 0; i < 20; i++) {
+      double tof = timeOfFlightMap.get(lookaheadDist);
+      lookaheadPose = new Pose2d(
+          launcherPosition.getTranslation().plus(new Translation2d(
+              launcherVelocityX * tof,
+              launcherVelocityY * tof)),
+          launcherPosition.getRotation());
+      lookaheadDist = target.getDistance(lookaheadPose.getTranslation());
+    }
+
+    return target.minus(lookaheadPose.getTranslation()).getAngle().plus(Rotation2d.kPi);
   }
 }

@@ -12,7 +12,7 @@ import edu.wpi.first.math.geometry.Transform3d;
 
 public class LauncherConstants {
   public static Transform3d robotToLauncher =
-      new Transform3d(0.15, -0.25, 0.599, new Rotation3d(0.0, 0.0, Math.PI));
+      new Transform3d(0.15, -0.10, 0.599, new Rotation3d(0.0, 0.0, Math.PI));
 
   private LauncherConstants() {}
 }

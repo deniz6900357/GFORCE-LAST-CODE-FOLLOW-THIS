@@ -17,26 +17,7 @@
               {
                 "type": "named",
                 "data": {
-                  "name": "Intake4"
-                }
-              }
-            ]
-          }
-        },
-        {
-          "type": "parallel",
-          "data": {
-            "commands": [
-              {
-                "type": "path",
-                "data": {
-                  "pathName": "New Path"
-                }
-              },
-              {
-                "type": "named",
-                "data": {
-                  "name": "Intake2"
+                  "name": "Intake75"
                 }
               }
             ]
@@ -50,12 +31,6 @@
                 "type": "path",
                 "data": {
                   "pathName": "2"
-                }
-              },
-              {
-                "type": "named",
-                "data": {
-                  "name": "Intake3"
                 }
               }
             ]

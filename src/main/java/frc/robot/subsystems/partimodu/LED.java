@@ -13,15 +13,21 @@ public class LED extends SubsystemBase {
     private static final double STROBE_WHITE = -0.05;        // Yanıp Sönen Beyaz (Strobe)
     private static final double STROBE_BLUE = -0.09;         // Yanıp Sönen Mavi (Strobe)
     private static final double HEARTBEAT_FAST_BLUE = 0.07;  // Color 1 Pattern Heartbeat Fast Mavi
+    private static final double BREATH_BLUE = -0.15;          // Fixed Palette Pattern Breath, Blue
 
     public LED() {
         // Blinkin, PWM üzerinden Spark motor sürücüsü gibi kontrol edilir
         blinkin = new Spark(PWM.BLINKIN_PORT);
     }
 
-    // Heartbeat Fast Mavi (Varsayılan)
+    // Heartbeat Fast Mavi
     public void setHeartbeatFastBlue() {
         blinkin.set(HEARTBEAT_FAST_BLUE);
+    }
+
+    // Breath Blue - Fixed Palette Pattern (Varsayılan)
+    public void setBreathBlue() {
+        blinkin.set(BREATH_BLUE);
     }
 
     // Düz Mavi
