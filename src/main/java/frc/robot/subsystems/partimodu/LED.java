@@ -10,6 +10,8 @@ public class LED extends SubsystemBase {
     // REV Blinkin Renk Kodları (Spark PWM değerleri)
     // Dokümantasyondan alınan değerler:
     private static final double SOLID_BLUE = 0.87;          // Düz Mavi
+    private static final double SOLID_RED = 0.61;           // Düz Kırmızı
+    private static final double SOLID_WHITE = 0.93;         // Düz Beyaz
     private static final double STROBE_WHITE = -0.05;        // Yanıp Sönen Beyaz (Strobe)
     private static final double STROBE_BLUE = -0.09;         // Yanıp Sönen Mavi (Strobe)
     private static final double HEARTBEAT_FAST_BLUE = 0.07;  // Color 1 Pattern Heartbeat Fast Mavi
@@ -43,5 +45,12 @@ public class LED extends SubsystemBase {
     // Yanıp Sönen Mavi (Atış)
     public void setBlinkBlue() {
         blinkin.set(STROBE_BLUE);
+    }
+
+    // Kırmızı-Beyaz alternasyonlu yanıp sön (Robot enable)
+    public void setBlinkRedWhite() {
+        double t = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+        boolean showRed = ((long) (t / 0.5)) % 2 == 0;
+        blinkin.set(showRed ? SOLID_RED : SOLID_WHITE);
     }
 }

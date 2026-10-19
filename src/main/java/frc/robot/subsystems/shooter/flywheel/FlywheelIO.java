@@ -26,13 +26,15 @@ public interface FlywheelIO {
 
   public static enum FlywheelIOOutputMode {
     COAST,
-    VELOCITY
+    VELOCITY,
+    OPEN_LOOP
   }
 
   public static class FlywheelIOOutputs {
     public FlywheelIOOutputMode mode = FlywheelIOOutputMode.COAST;
     public double velocityRadsPerSec = 0.0;
     public double feedforward = 0.0;
+    public double dutyCycle = 0.0;
     public double kP = 0.0;
     public double kD = 0.0;
   }

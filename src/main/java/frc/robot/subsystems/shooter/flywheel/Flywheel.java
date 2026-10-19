@@ -133,6 +133,18 @@ public class Flywheel extends FullSubsystem {
         .withName("Flywheel: " + Math.round(velocityRadsPerSec) + " rad/s");
   }
 
+  private void runPercent(double dutyCycle) {
+    outputs.mode = FlywheelIOOutputMode.OPEN_LOOP;
+    outputs.dutyCycle = dutyCycle;
+    atGoal = true;
+    Logger.recordOutput(name + "/DutyCycle", dutyCycle);
+  }
+
+  public Command runPercentCommand(double dutyCycle) {
+    return runEnd(() -> runPercent(dutyCycle), this::stop)
+        .withName("Flywheel: " + Math.round(dutyCycle * 100) + "%");
+  }
+
   public Command stopCommand() {
     return runOnce(this::stop);
   }

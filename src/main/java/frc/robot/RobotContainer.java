@@ -13,7 +13,6 @@ import com.pathplanner.lib.auto.NamedCommands;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -261,6 +260,11 @@ public class RobotContainer {
         // Varsayılan olarak LED'ler düz mavi yansın
         ledSubsystem.setDefaultCommand(ledSubsystem.run(ledSubsystem::setBreathBlue).withName("LED: Default Breath Blue"));
 
+        // Robot enable olduğunda (auto/teleop/test) disable edilene kadar kırmızı-beyaz yanıp sön
+        RobotModeTriggers.disabled().negate().whileTrue(
+            ledSubsystem.run(ledSubsystem::setBlinkRedWhite).withName("LED: Enabled Red/White Blink")
+        );
+
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
         drivetrain.setDefaultCommand(
@@ -335,103 +339,20 @@ public class RobotContainer {
             }).ignoringDisable(true)
         );
 
-        // RT (sağ trigger): Koşullu atış (Alliance-aware)
-        // Blue Alliance: X > 4.6 → sabit noktaya aim + hood 0° + flywheel %90 + feeder
-        //                X <= 4.6 → normal AimToHub + Hood/Flywheel Track + Feeder
-        // Red Alliance:  X > 12 → sabit noktaya aim + hood 0° + flywheel %90 + feeder
-        //                X <= 12 → hiçbir şey yapma
+        // RT (sağ trigger): Aim ve hood değiştirmeden ateş et
+        // Robot manuel sürüşle nereye dönükse oraya atar - sadece flywheel + feeder
         joystick.rightTrigger().whileTrue(
-            Commands.defer(() -> {
-                Pose2d robotPose = drivetrain.getState().Pose;
-                boolean isRed = edu.wpi.first.wpilibj.DriverStation.getAlliance()
-                    .orElse(edu.wpi.first.wpilibj.DriverStation.Alliance.Blue)
-                    == edu.wpi.first.wpilibj.DriverStation.Alliance.Red;
-
-                if (isRed) {
-                    if (robotPose.getX() < 12.0) {
-                        // Red Alliance far shot - Y'ye göre hedef belirle (predictive)
-                        Translation2d target = robotPose.getY() > 4.02
-                            ? new Translation2d(14.54, 6.0)
-                            : new Translation2d(14.54, 2.0);
-                        System.out.println("RT: Red far shot - hedef: " + target);
-
-                        return Commands.parallel(
-                            drivetrain.applyRequest(() -> {
-                                Rotation2d targetAngle = frc.robot.subsystems.shooter.LaunchCalculator
-                                    .getInstance().getDriveAngleForTarget(target).plus(Rotation2d.k180deg);
-                                double error = AimToHubCommand.getModuloRotation(
-                                    targetAngle.getDegrees() - drivetrain.getState().Pose.getRotation().getDegrees()
-                                );
-                                double steering = 0.08 * error;
-                                if (Math.abs(error) > 1.0) steering += Math.signum(error) * 0.02;
-                                steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
-                                return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
-                                    .withVelocityY(-joystick.getLeftX() * MaxSpeed)
-                                    .withRotationalRate(steering);
-                            }),
-                            hood.setAngleCommand(0.0),
-                            flywheel.runVelocityCommand(333.0),
-                            Commands.waitSeconds(0.5)
-                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                        ).withName("RT: Red Far Shot");
-                    } else {
-                        // Red Alliance, X >= 12: AimToHub + Hood/Flywheel track (Blue normal moduyla aynı)
-                        return Commands.parallel(
-                            new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
-                            hood.runTrackTargetCommand(),
-                            flywheel.runTrackTargetCommand(),
-                            Commands.waitSeconds(0.5)
-                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                        ).withName("RT: Red Hub Shot");
-                    }
-                } else {
-                    // Blue Alliance
-                    if (robotPose.getX() > 4.6) {
-                        // Blue far shot - Y'ye göre hedef belirle (predictive)
-                        Translation2d target = robotPose.getY() > 4.02
-                            ? new Translation2d(2.0, 6.0)
-                            : new Translation2d(2.0, 2.0);
-                        System.out.println("RT: Blue far shot - hedef: " + target);
-
-                        return Commands.parallel(
-                            drivetrain.applyRequest(() -> {
-                                Rotation2d targetAngle = frc.robot.subsystems.shooter.LaunchCalculator
-                                    .getInstance().getDriveAngleForTarget(target).plus(Rotation2d.k180deg);
-                                double error = AimToHubCommand.getModuloRotation(
-                                    targetAngle.getDegrees() - drivetrain.getState().Pose.getRotation().getDegrees()
-                                );
-                                double steering = 0.08 * error;
-                                if (Math.abs(error) > 1.0) steering += Math.signum(error) * 0.02;
-                                steering = Math.max(-MaxAngularRate, Math.min(MaxAngularRate, steering));
-                                return drive.withVelocityX(-joystick.getLeftY() * MaxSpeed)
-                                    .withVelocityY(-joystick.getLeftX() * MaxSpeed)
-                                    .withRotationalRate(steering);
-                            }),
-                            hood.setAngleCommand(0.0),
-                            flywheel.runVelocityCommand(333.0),
-                            Commands.waitSeconds(0.5)
-                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                        ).withName("RT: Blue Far Shot");
-                    } else {
-                        // Blue Alliance, X <= 4.6: normal AimToHub + track
-                        return Commands.parallel(
-                            new AimToHubCommand(drivetrain, joystick::getLeftY, joystick::getLeftX, MaxSpeed, MaxAngularRate),
-                            hood.runTrackTargetCommand(),
-                            flywheel.runTrackTargetCommand(),
-                            Commands.waitSeconds(0.5)
-                                .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
-                        ).withName("RT: Aim + Hood + Flywheel + Feeder");
-                    }
-                }
-            }, java.util.Set.of(drivetrain, hood, flywheel, feeder))
+            Commands.parallel(
+                flywheel.runPercentCommand(1.0),
+                Commands.waitSeconds(0.5)
+                    .andThen(Commands.startEnd(feeder::feed, feeder::stop, feeder))
+            ).withName("RT: Shoot (100% flywheel)")
         );
 
         // LT (sol trigger): Intake - basılı tut, bırak durur
+        // LED'i etkilemez (enable boyunca kırmızı-beyaz blink devam eder)
         joystick.leftTrigger().whileTrue(
-                Commands.parallel(
-                        intakeMotor.intakeCommand(),
-                        ledSubsystem.run(ledSubsystem::setBlinkWhite).withName("LED: Blink White")
-                ).withName("LT: Intake"));
+                intakeMotor.intakeCommand().withName("LT: Intake"));
 
         // X tuşu (Klavye - Simülasyon): AutoTrench test için
         // Simülasyonda klavyeden X'e basarak test edebilirsiniz - SAĞ trench (SMART direction)

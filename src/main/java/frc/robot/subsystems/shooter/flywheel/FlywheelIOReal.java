@@ -91,6 +91,10 @@ public class FlywheelIOReal implements FlywheelIO {
                         .withVelocity(velocityRPS)
                         .withFeedForward(outputs.feedforward));
                 break;
+
+            case OPEN_LOOP:
+                motor.setControl(dutyCycleRequest.withOutput(outputs.dutyCycle));
+                break;
         }
     }
 }

@@ -6,10 +6,10 @@ public final class BuildConstants {
   public static final String MAVEN_NAME = "Mk5n-otonom";
   public static final String VERSION = "unspecified";
   public static final int GIT_REVISION = 1;
-  public static final String GIT_SHA = "7b339c1a910c1cd2b848551fd6ced095b497f462";
-  public static final String GIT_DATE = "2026-03-26 21:14:41";
+  public static final String GIT_SHA = "23a25887abd126008f556a5fd88b70b62764c0af";
+  public static final String GIT_DATE = "2026-05-18 10:56:25";
   public static final String GIT_BRANCH = "main";
-  public static final String BUILD_DATE = "2026-03-26 21:14:41";
+  public static final String BUILD_DATE = "2026-05-18 10:56:25";
   public static final boolean DIRTY = false;
 
   private BuildConstants(){}
